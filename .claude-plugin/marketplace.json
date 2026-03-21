@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "alainbrown-skills",
+  "description": "Claude Code skills that replace standalone apps",
+  "owner": {
+    "name": "alainbrown"
+  },
+  "plugins": [
+    {
+      "name": "skills",
+      "description": "A collection of Claude Code skills that replace standalone apps. Currently includes: drill (interactive topic coaching).",
+      "source": "./"
+    }
+  ]
+}
