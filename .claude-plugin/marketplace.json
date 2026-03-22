@@ -1,15 +1,36 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "alainbrown-skills",
-  "description": "Claude Code skills that replace standalone apps",
   "owner": {
     "name": "alainbrown"
   },
+  "metadata": {
+    "description": "Specialized workflows for AI coding agents — structured expertise for tasks that benefit from a repeatable, opinionated process.",
+    "version": "1.0.0"
+  },
   "plugins": [
     {
-      "name": "skills",
-      "description": "A collection of Claude Code skills that replace standalone apps. Currently includes: drill (interactive topic coaching).",
-      "source": "./"
+      "name": "drill",
+      "description": "Interactive coaching skill that drills users on any topic through multiple-choice and fill-in-the-blank questions",
+      "source": "./",
+      "skills": [
+        "./skills/drill"
+      ]
+    },
+    {
+      "name": "git-squash",
+      "description": "Squashes a git branch into fewer, more meaningful commits with well-structured messages",
+      "source": "./",
+      "skills": [
+        "./skills/git-squash"
+      ]
+    },
+    {
+      "name": "skill-forge",
+      "description": "Creates publishable agent skills with proper plugin structure, READMEs, and eval-backed quality",
+      "source": "./",
+      "skills": [
+        "./skills/skill-forge"
+      ]
     }
   ]
 }

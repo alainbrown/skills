@@ -49,26 +49,13 @@ Before creating a skill, make sure the repo is set up as a plugin. Check for exi
 
 Check if `.claude-plugin/` exists. If not:
 
-> "This repo isn't set up as a skill plugin yet. Want me to create the plugin structure? I'll add a `.claude-plugin/` folder with the metadata files needed to make your skills installable."
+> "This repo isn't set up as a skill plugin yet. Want me to create the plugin structure? I'll add a `.claude-plugin/` folder with the marketplace metadata needed to make your skills installable."
 
 If the user agrees, create:
 
 ```
 .claude-plugin/
-├── plugin.json
 └── marketplace.json
-```
-
-**plugin.json** — populate from git config and repo name:
-
-```json
-{
-  "name": "<repo-name>",
-  "description": "<ask user for a one-line description>",
-  "version": "1.0.0",
-  "license": "MIT",
-  "keywords": []
-}
 ```
 
 Try `git config user.name` for the owner and parse the repo name from `git remote get-url origin`. If not available, ask.
@@ -77,21 +64,28 @@ Try `git config user.name` for the owner and parse the repo name from `git remot
 
 ```json
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "<owner>-<repo-name>",
-  "description": "<same as plugin.json>",
   "owner": {
     "name": "<owner>"
   },
+  "metadata": {
+    "description": "<ask user for a one-line description>",
+    "version": "1.0.0"
+  },
   "plugins": [
     {
-      "name": "<repo-name>",
-      "description": "<same>",
-      "source": "./"
+      "name": "<skill-name>",
+      "description": "<skill description from SKILL.md frontmatter>",
+      "source": "./",
+      "skills": [
+        "./skills/<skill-name>"
+      ]
     }
   ]
 }
 ```
+
+Each skill gets its own entry in the `plugins` array. If `marketplace.json` already exists, add a new plugin entry for the new skill rather than overwriting.
 
 ### Repo README
 

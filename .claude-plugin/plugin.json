@@ -1,7 +1,0 @@
-{
-  "name": "skills",
-  "description": "A collection of Claude Code skills that replace standalone apps.",
-  "version": "1.0.0",
-  "license": "MIT",
-  "keywords": ["skills", "drill", "quiz", "learning", "coaching", "study", "practice", "app-replacement"]
-}
