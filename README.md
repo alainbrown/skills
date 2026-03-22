@@ -8,13 +8,6 @@ Skills are markdown instruction files (SKILL.md) that AI coding agents load when
 
 Skills work with AI coding agents that support them, including [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [OpenAI Codex](https://github.com/openai/codex), and other agents with skill/plugin support.
 
-## Available skills
-
-| Skill | Description |
-|-------|-------------|
-| [drill](skills/drill) | Interactive coaching that quizzes you on any topic through multiple-choice and fill-in-the-blank questions |
-| [git-squash](skills/git-squash) | Squashes messy branches into fewer, meaningful commits with convention-aware messages |
-
 ## Install
 
 **Claude Code:**
