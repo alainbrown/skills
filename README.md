@@ -12,8 +12,8 @@ Skills work with AI coding agents that support them, including [Claude Code](htt
 
 **Claude Code:**
 ```bash
-/plugin marketplace add alainbrown/skills
-/plugin install git-squash@alainbrown-skills
+/plugin marketplace add alainbrown/skills # install the marketplace
+/plugin install git-squash@alainbrown-skills # install a specific skill from a marketplace
 ```
 
 **Skills CLI:**
