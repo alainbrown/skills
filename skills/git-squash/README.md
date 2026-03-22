@@ -2,17 +2,6 @@
 
 An agent skill that squashes messy git branches into fewer, meaningful commits with convention-aware messages.
 
-## Install
-
-```bash
-# Claude Code plugin (includes all skills)
-/plugin marketplace add alainbrown/skills
-/plugin install git-squash@alainbrown-skills
-
-# Or install just this skill
-npx skills add alainbrown/skills --skill git-squash
-```
-
 ## Usage
 
 Invoke the skill by asking your agent to clean up commits:
