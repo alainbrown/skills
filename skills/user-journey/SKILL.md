@@ -53,7 +53,9 @@ Check if Playwright MCP tools are available (look for tools like `mcp__*playwrig
 
 **If not available and the user wants browser-driven discovery:** Suggest setting it up:
 
-> "Browser-driven discovery works best with the Playwright MCP server, which lets me navigate your running app and observe the actual UI. Want me to help you set it up? It's typically added with `claude mcp add playwright -- npx @anthropic-ai/mcp-playwright` or via your MCP config."
+> "Browser-driven discovery works best with the Playwright MCP server, which lets me navigate your running app and observe the actual UI. Want me to help you set it up?"
+
+If a documentation MCP (Context7) is available, query it for the latest Playwright MCP setup instructions rather than guessing the command — package names and config formats change frequently. If no docs MCP is available, point the user to search for "Playwright MCP server" setup for their specific AI client.
 
 Don't block on this — offer it, then fall back to conversation-driven or codebase-driven if the user declines.
 
