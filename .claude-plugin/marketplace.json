@@ -47,6 +47,14 @@
       "skills": [
         "./skills/user-journey"
       ]
+    },
+    {
+      "name": "render",
+      "description": "Create interactive, LLM-powered browser experiences — wizards, forms, chat interfaces, and conversational workflows rendered as React components",
+      "source": "./",
+      "skills": [
+        "./skills/render"
+      ]
     }
   ]
 }
