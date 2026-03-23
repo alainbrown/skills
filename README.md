@@ -19,7 +19,7 @@ Skills work with AI coding agents that support them, including [Claude Code](htt
 **Skills CLI:**
 ```bash
 npx skills add alainbrown/skills --list # list available
-npx skills add alainbrown/skills --skill drill # install a specific skill
+npx skills add alainbrown/skills --skill scaffold # install a specific skill
 npx skills add alainbrown/skills --all # install all
 ```
 
@@ -31,15 +31,18 @@ After installing, just talk to your agent naturally. Skills trigger automaticall
 # triggers git-squash
 clean up my commits before I open a PR
 
-# triggers drill
-quiz me on kubernetes networking
+# triggers user-journey
+write E2E tests for my checkout flow
+
+# triggers scaffold
+set up a new Next.js project with auth and payments
 ```
 
 You can also invoke a skill directly by name:
 
 ```
 /git-squash
-/drill
+/skill-forge
 ```
 
 ## How skills work
