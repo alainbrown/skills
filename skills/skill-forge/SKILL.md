@@ -209,11 +209,39 @@ skill-name/
 
 ## Phase 3: Test & Iterate
 
-After the draft, test it. This follows the standard eval loop.
+After the draft, test it. The goal is to answer one question: **does this skill produce better outcomes than the LLM alone?**
+
+### Define success criteria
+
+Before writing test cases, define what "better" means for this specific skill. Ask the user:
+
+> "What should this skill do better than the baseline? For example: fewer questions before being productive, more consistent output structure, handles edge cases the LLM would miss, etc."
+
+Draft 3-6 success criteria — concrete, evaluable dimensions. Examples:
+
+- "Asks fewer clarifying questions before producing output"
+- "Output follows a consistent structure across different inputs"
+- "Handles [specific edge case] that the baseline would miss"
+- "Produces connected, runnable output (not isolated snippets)"
+- "Stays concise — no filler or congratulatory language"
+
+Save these to `evals/rubric.json`:
+
+```json
+{
+  "skill_name": "<name>",
+  "criteria": [
+    { "id": 1, "name": "short descriptive name", "description": "what good looks like for this criterion" },
+    { "id": 2, "name": "...", "description": "..." }
+  ]
+}
+```
+
+Share with the user for review before proceeding.
 
 ### Create test cases
 
-Come up with 2-4 realistic test prompts — things a real user would actually say. Share them with the user for review. Save to `evals/evals.json` in the skill directory:
+Come up with 2-4 realistic test prompts — things a real user would actually say. Include at least one edge case. Share them with the user for review. Save to `evals/evals.json` in the skill directory:
 
 ```json
 {
@@ -221,6 +249,7 @@ Come up with 2-4 realistic test prompts — things a real user would actually sa
   "evals": [
     {
       "id": 1,
+      "name": "descriptive-name",
       "prompt": "realistic user prompt",
       "expected_output": "what good output looks like",
       "files": []
@@ -236,60 +265,84 @@ For each test case, spawn two subagents in the same turn:
 1. **With-skill run** — provide the skill path, save outputs to `<skill-name>-workspace/iteration-<N>/<eval-name>/with_skill/outputs/`
 2. **Baseline run** — same prompt, no skill, save to `without_skill/outputs/`
 
-Create `eval_metadata.json` for each test case with a descriptive name and assertions (can be empty initially).
+### Grade against the rubric
 
-### Draft assertions
+After all runs complete, read every output and grade each one independently against the rubric. For each eval, for each criterion, score both the with-skill and baseline outputs.
 
-While runs are in progress, draft quantitative assertions — objectively verifiable checks with descriptive names. Not every skill needs these. Skills with subjective outputs (writing style, creative work) are better evaluated qualitatively.
+Save `grading.json` per eval:
 
-Ask the user: "Should we set up quantitative assertions for these tests, or is qualitative review enough for this skill?"
+```json
+{
+  "eval_name": "descriptive-name",
+  "criteria": [
+    {
+      "name": "criterion name",
+      "with_skill": { "score": "win|tie|lose", "evidence": "brief explanation" },
+      "baseline": { "score": "win|tie|lose", "evidence": "brief explanation" }
+    }
+  ]
+}
+```
 
-If they want assertions, draft them and save to the eval_metadata.json files.
+A "win" means that variant handled this criterion well. A "lose" means it didn't. A "tie" means both were comparable.
 
-### Capture timing
+### Synthesize results
 
-When each subagent completes, save `total_tokens` and `duration_ms` from the notification to `timing.json` immediately — this data isn't persisted elsewhere.
+After grading all evals, aggregate the results into a summary table:
 
-### Grade and review
+| Eval | Skill Wins | Baseline Wins | Ties |
+|------|-----------|--------------|------|
+| eval-1 | 4/5 | 0/5 | 1/5 |
+| eval-2 | 3/5 | 1/5 | 1/5 |
+| **Total** | **X/Y (Z%)** | ... | ... |
 
-After all runs complete:
+Then answer the key question explicitly:
 
-1. **Grade each run** against assertions (if any). Save `grading.json` using the schema: `expectations` array with `text`, `passed`, `evidence` fields.
+> "The skill wins Z% of criteria comparisons across N evals. The baseline already handles [these cases] well. The skill adds clear value for [these specific things]. **Recommendation: ship / iterate / reconsider.**"
 
-2. **Build benchmark** — aggregate results into `benchmark.json`:
-   ```bash
-   node <scripts>/aggregate-benchmark.mjs \
-     <workspace>/iteration-N --skill-name "<name>"
-   ```
+- **Ship** — skill wins >70% of criteria and the baseline loses on things that matter
+- **Iterate** — skill wins but has clear gaps to fix, or wins are marginal
+- **Reconsider** — skill doesn't meaningfully outperform the baseline; the LLM already does this well enough
 
-3. **Launch the eval viewer** — start the review server in the background:
-   ```bash
-   node <scripts>/generate-review.mjs \
-     <workspace>/iteration-N \
-     --skill-name "<name>" \
-     --benchmark <workspace>/iteration-N/benchmark.json
-   ```
-   This starts a local server (default port 3117, auto-increments if taken) and opens the browser. The user reviews outputs, types feedback, and clicks "Submit All Reviews" — feedback saves directly to `<workspace>/iteration-N/feedback.json` via the server. No file downloads needed.
+Present this to the user. If they want to iterate, identify which criteria the skill lost on and improve the SKILL.md to address those gaps. Rerun.
 
-   Run this as a background task so you can continue the conversation. Kill the server when the user is done reviewing.
+### Launch the review viewer
 
-   For iteration 2+, add `--previous-workspace <workspace>/iteration-<N-1>`.
+After grading, always launch the interactive review server. It shows outputs side-by-side with rubric grades and lets the user agree/disagree per criterion with inline notes.
 
-   For headless environments (CI, Cowork), use static mode instead:
-   ```bash
-   node <scripts>/generate-review.mjs \
-     <workspace>/iteration-N \
-     --skill-name "<name>" \
-     --output <workspace>/iteration-N/review.html
-   ```
+```bash
+node <scripts>/generate-review.mjs \
+  <workspace>/iteration-N \
+  --skill-name "<name>" \
+  --rubric <evals>/rubric.json \
+  --benchmark <workspace>/iteration-N/benchmark.json
+```
 
-   **Finding the scripts:** Both scripts are in the `scripts/` directory next to this SKILL.md. Use the same base path you loaded this skill from — the scripts are always at `scripts/aggregate-benchmark.mjs` and `scripts/generate-review.mjs` relative to it. No Python or external dependencies required — just Node.js.
+This starts a local server (default port 3117, auto-increments if taken) and opens the browser. The review page shows:
+- The eval prompt
+- With-skill and baseline outputs
+- Each rubric criterion with the agent's grade (win/tie/lose) and evidence
+- Agree/disagree toggles and notes fields per criterion
+- A general feedback textarea
 
-4. **Tell the user** to review the outputs and come back with feedback.
+Run this as a background task so you can continue the conversation. Tell the user the URL and ask them to review. When they click "Submit All Reviews," feedback saves directly to `feedback.json` via the server. Kill the server when the user is done.
+
+If the server fails to start (headless environment, port issues), fall back to static mode:
+```bash
+node <scripts>/generate-review.mjs \
+  <workspace>/iteration-N \
+  --skill-name "<name>" \
+  --rubric <evals>/rubric.json \
+  --output <workspace>/iteration-N/review.html
+```
+
+For iteration 2+, add `--previous-workspace <workspace>/iteration-<N-1>`.
+
+**Finding the scripts:** Both scripts are in the `scripts/` directory next to this SKILL.md. Use the same base path you loaded this skill from. No Python or external dependencies required — just Node.js.
 
 ### Iterate
 
-Read feedback. Improve the skill. Rerun. Repeat until the user is happy or all feedback is empty.
+If the recommendation is "iterate," improve the SKILL.md to address the criteria it lost on. Rerun the evals. Repeat until the user is satisfied or the skill clearly wins on the criteria that matter.
 
 ---
 
@@ -312,12 +365,10 @@ Create `skills/<skill-name>/README.md` with these sections:
 - **Safety** (if the skill has safety checks, warnings, or guardrails)
 - **Edge cases handled** (if the skill explicitly handles edge cases)
 
-**Include only if quantitative assertions were run:**
+**Include if evals were run:**
 - **Test scenarios** (from evals.json — prompt + description for each)
-- **Eval results** (from benchmark.json — pass rates, baseline comparison table)
-- **Where the baseline holds up / Where the skill adds value** (analysis from grading)
-
-If the skill was evaluated qualitatively only (no assertions, no grading), skip the eval results section entirely. Don't fabricate numbers or force quantitative framing onto subjective skills.
+- **Eval results** (skill win rate from rubric grading — overall percentage and per-eval breakdown)
+- **Where the baseline holds up / Where the skill adds value** (from criteria-level analysis)
 
 **Ask at the end:**
 > "Any design decisions worth documenting in the README? For example, why you chose a particular approach, or tradeoffs you considered."

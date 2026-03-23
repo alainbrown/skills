@@ -9,7 +9,7 @@
  * Usage:
  *   # Server mode (default) — starts server, prints URL
  *   node generate-review.mjs <iteration-dir> --skill-name <name>
- *   node generate-review.mjs <iteration-dir> --skill-name <name> --port 3117
+ *   node generate-review.mjs <iteration-dir> --skill-name <name> --rubric rubric.json
  *   node generate-review.mjs <iteration-dir> --skill-name <name> --benchmark benchmark.json
  *   node generate-review.mjs <iteration-dir> --skill-name <name> --previous-workspace ../iteration-1
  *
@@ -50,6 +50,7 @@ function parseArgs() {
     skillName: '',
     output: '',
     benchmark: '',
+    rubric: '',
     previousWorkspace: '',
     port: DEFAULT_PORT,
   };
@@ -58,12 +59,13 @@ function parseArgs() {
     if (args[i] === '--skill-name' && args[i + 1]) { opts.skillName = args[i + 1]; i++; }
     else if (args[i] === '--output' && args[i + 1]) { opts.output = args[i + 1]; i++; }
     else if (args[i] === '--benchmark' && args[i + 1]) { opts.benchmark = args[i + 1]; i++; }
+    else if (args[i] === '--rubric' && args[i + 1]) { opts.rubric = args[i + 1]; i++; }
     else if (args[i] === '--previous-workspace' && args[i + 1]) { opts.previousWorkspace = args[i + 1]; i++; }
     else if ((args[i] === '--port' || args[i] === '-p') && args[i + 1]) { opts.port = parseInt(args[i + 1], 10); i++; }
   }
 
   if (!opts.iterDir) {
-    console.error('Usage: node generate-review.mjs <iteration-dir> --skill-name <name> [--output <path>]');
+    console.error('Usage: node generate-review.mjs <iteration-dir> --skill-name <name> [--rubric <path>] [--output <path>]');
     console.error('  Server mode (default): starts local server');
     console.error('  Static mode: --output <path> writes HTML file');
     process.exit(1);
@@ -71,6 +73,7 @@ function parseArgs() {
 
   opts.iterDir = resolve(opts.iterDir);
   if (opts.output) opts.output = resolve(opts.output);
+  if (opts.rubric) opts.rubric = resolve(opts.rubric);
   if (!opts.skillName) opts.skillName = opts.iterDir.split('/').pop().replace('-workspace', '');
 
   return opts;
@@ -122,8 +125,9 @@ function findRuns(iterDir) {
     if (evalName.startsWith('.') || evalName === 'node_modules') continue;
 
     const metadata = readJson(join(evalDir, 'eval_metadata.json'));
+    const rubricGrading = readJson(join(evalDir, 'grading.json'));
 
-    for (const variant of ['with_skill', 'without_skill', 'old_skill']) {
+    for (const variant of ['with_skill', 'without_skill']) {
       const variantDir = join(evalDir, variant);
       const outputsDir = join(variantDir, 'outputs');
       if (!existsSync(outputsDir) || !statSync(outputsDir).isDirectory()) continue;
@@ -136,16 +140,14 @@ function findRuns(iterDir) {
         }
       }
 
-      const grading = readJson(join(variantDir, 'grading.json'));
-
       runs.push({
         id: `${evalName}-${variant}`,
-        evalName: metadata?.eval_name || evalName,
+        evalName: metadata?.eval_name || metadata?.name || evalName,
         prompt: metadata?.prompt || '(No prompt found)',
         evalId: metadata?.eval_id,
         configuration: variant,
         outputs,
-        grading,
+        rubricGrading,
       });
     }
   }
@@ -159,7 +161,8 @@ function loadPreviousData(workspace) {
   const feedbackMap = {};
   if (feedback?.reviews) {
     for (const r of feedback.reviews) {
-      if (r.feedback?.trim()) feedbackMap[r.run_id] = r.feedback;
+      if (r.general_feedback?.trim()) feedbackMap[r.eval_name || r.run_id] = r;
+      else if (r.feedback?.trim()) feedbackMap[r.run_id] = { general_feedback: r.feedback };
     }
   }
   return feedbackMap;
@@ -173,24 +176,24 @@ function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function generateHtml(runs, skillName, benchmark, previousFeedback, serverMode) {
+function generateHtml(runs, skillName, benchmark, rubric, previousFeedback, serverMode) {
   const evalGroups = {};
   for (const run of runs) {
     const key = run.evalName;
-    if (!evalGroups[key]) evalGroups[key] = { prompt: run.prompt, runs: [] };
+    if (!evalGroups[key]) evalGroups[key] = { prompt: run.prompt, runs: [], rubricGrading: null };
     evalGroups[key].runs.push(run);
+    if (run.rubricGrading) evalGroups[key].rubricGrading = run.rubricGrading;
   }
 
   const evalNames = Object.keys(evalGroups);
+  const rubricCriteria = rubric?.criteria || benchmark?.rubric || [];
 
-  // In server mode, Submit posts to /api/feedback
-  // In static mode, Submit downloads a file
   const submitFn = serverMode
     ? `function submitFeedback() {
   saveFeedback();
   const reviews = [];
   for (const [evalName, fb] of Object.entries(feedback)) {
-    reviews.push({ run_id: evalName, feedback: fb, timestamp: new Date().toISOString() });
+    reviews.push({ eval_name: evalName, ...fb, timestamp: new Date().toISOString() });
   }
   const data = { reviews, status: 'complete' };
   fetch('/api/feedback', {
@@ -212,7 +215,7 @@ function generateHtml(runs, skillName, benchmark, previousFeedback, serverMode) 
   saveFeedback();
   const reviews = [];
   for (const [evalName, fb] of Object.entries(feedback)) {
-    reviews.push({ run_id: evalName, feedback: fb, timestamp: new Date().toISOString() });
+    reviews.push({ eval_name: evalName, ...fb, timestamp: new Date().toISOString() });
   }
   const data = { reviews, status: 'complete' };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -233,6 +236,7 @@ function generateHtml(runs, skillName, benchmark, previousFeedback, serverMode) 
   --bg: #0d1117; --surface: #161b22; --border: #30363d;
   --text: #e6edf3; --muted: #7d8590; --accent: #58a6ff;
   --green: #3fb950; --green-bg: #0d2117; --red: #f85149; --red-bg: #2d1115;
+  --yellow: #f0c000; --yellow-bg: #2d2600;
   --radius: 8px; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   --mono: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
 }
@@ -262,19 +266,34 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .prompt-text { white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6; color: var(--text); }
 .output-file { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-top: 0.75rem; }
 .output-file-header { padding: 0.5rem 0.75rem; font-size: 0.8rem; color: var(--muted); background: var(--bg); border-bottom: 1px solid var(--border); font-family: var(--mono); }
-.output-file pre { padding: 0.75rem; font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; font-family: var(--mono); overflow-x: auto; }
+.output-file pre { padding: 0.75rem; font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; font-family: var(--mono); overflow-x: auto; max-height: 600px; overflow-y: auto; }
 .output-file img { max-width: 100%; height: auto; padding: 0.75rem; }
-.grade-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; font-size: 0.85rem; }
-.grade-icon { width: 18px; text-align: center; }
-.grade-pass { color: var(--green); }
-.grade-fail { color: var(--red); }
-.grade-evidence { font-size: 0.75rem; color: var(--muted); margin-left: 1.5rem; }
-.feedback-textarea { width: 100%; min-height: 80px; padding: 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: var(--font); font-size: 0.875rem; resize: vertical; }
+.rubric-card { border: 1px solid var(--border); border-radius: var(--radius); margin-top: 0.75rem; overflow: hidden; }
+.rubric-card-header { padding: 0.5rem 0.75rem; font-size: 0.85rem; font-weight: 600; background: var(--bg); border-bottom: 1px solid var(--border); }
+.rubric-card-body { padding: 0.75rem; }
+.rubric-grades { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem; }
+.rubric-grade { padding: 0.4rem 0.6rem; border-radius: var(--radius); font-size: 0.8rem; }
+.rubric-grade-label { font-size: 0.7rem; text-transform: uppercase; color: var(--muted); margin-bottom: 0.2rem; }
+.rubric-grade.win { background: var(--green-bg); border: 1px solid rgba(63, 185, 80, 0.3); }
+.rubric-grade.lose { background: var(--red-bg); border: 1px solid rgba(248, 81, 73, 0.3); }
+.rubric-grade.tie { background: var(--yellow-bg); border: 1px solid rgba(240, 192, 0, 0.3); }
+.rubric-evidence { font-size: 0.75rem; color: var(--muted); font-style: italic; margin-top: 0.25rem; }
+.rubric-toggle { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+.rubric-toggle button { padding: 0.25rem 0.75rem; border-radius: var(--radius); font-size: 0.75rem; cursor: pointer; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+.rubric-toggle button.selected { border-color: var(--accent); background: rgba(88, 166, 255, 0.1); }
+.rubric-toggle button:hover { border-color: var(--accent); }
+.rubric-notes { width: 100%; padding: 0.4rem 0.6rem; margin-top: 0.4rem; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: var(--font); font-size: 0.8rem; resize: none; }
+.rubric-notes:focus { outline: none; border-color: var(--accent); }
+.feedback-textarea { width: 100%; min-height: 60px; padding: 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: var(--font); font-size: 0.875rem; resize: vertical; }
 .feedback-textarea:focus { outline: none; border-color: var(--accent); }
 .prev-feedback { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.5rem 0.75rem; margin-top: 0.5rem; font-size: 0.8rem; color: var(--muted); }
 .bench-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .bench-table th, .bench-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
 .bench-table th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+.recommendation { padding: 1rem; border-radius: var(--radius); font-size: 1rem; font-weight: 600; text-align: center; margin-top: 1rem; }
+.recommendation.ship { background: var(--green-bg); border: 1px solid rgba(63, 185, 80, 0.3); color: var(--green); }
+.recommendation.iterate { background: var(--yellow-bg); border: 1px solid rgba(240, 192, 0, 0.3); color: var(--yellow); }
+.recommendation.reconsider { background: var(--red-bg); border: 1px solid rgba(248, 81, 73, 0.3); color: var(--red); }
 .submit-bar { padding: 1rem 2rem; border-top: 1px solid var(--border); background: var(--surface); text-align: right; }
 .submit-btn { background: var(--accent); color: #fff; border: none; padding: 0.6rem 1.5rem; border-radius: var(--radius); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
 .submit-btn:hover { opacity: 0.9; }
@@ -306,7 +325,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   <div class="main" id="benchmark-main"></div>
 </div>
 <script>
-const DATA = ${JSON.stringify({ evalGroups, benchmark, previousFeedback, evalNames })};
+const DATA = ${JSON.stringify({ evalGroups, benchmark, rubricCriteria, previousFeedback, evalNames })};
 let currentIdx = 0;
 const feedback = {};
 
@@ -324,10 +343,41 @@ function navigate(delta) {
 }
 
 function saveFeedback() {
-  const ta = document.getElementById('feedback-input');
-  if (ta) {
-    const evalName = DATA.evalNames[currentIdx];
-    feedback[evalName] = ta.value;
+  const evalName = DATA.evalNames[currentIdx];
+  if (!feedback[evalName]) feedback[evalName] = { criteria_feedback: [], general_feedback: '' };
+
+  const generalTa = document.getElementById('general-feedback-input');
+  if (generalTa) feedback[evalName].general_feedback = generalTa.value;
+
+  const rubricGrading = DATA.evalGroups[evalName]?.rubricGrading;
+  if (rubricGrading?.criteria) {
+    const criteriaFb = [];
+    for (const criterion of rubricGrading.criteria) {
+      const safeName = criterion.name.replace(/[^a-zA-Z0-9]/g, '-');
+      const agreeBtn = document.querySelector('[data-criterion-id="' + safeName + '"][data-vote="agree"]');
+      const disagreeBtn = document.querySelector('[data-criterion-id="' + safeName + '"][data-vote="disagree"]');
+      const notesInput = document.getElementById('rubric-notes-' + safeName);
+      criteriaFb.push({
+        name: criterion.name,
+        agent_grade_skill: criterion.with_skill?.score || 'unknown',
+        agent_grade_baseline: criterion.baseline?.score || 'unknown',
+        user_agrees: agreeBtn?.classList.contains('selected') ? true : disagreeBtn?.classList.contains('selected') ? false : null,
+        notes: notesInput?.value || '',
+      });
+    }
+    feedback[evalName].criteria_feedback = criteriaFb;
+  }
+}
+
+function toggleVote(safeName, vote) {
+  const agreeBtn = document.querySelector('[data-criterion-id="' + safeName + '"][data-vote="agree"]');
+  const disagreeBtn = document.querySelector('[data-criterion-id="' + safeName + '"][data-vote="disagree"]');
+  if (vote === 'agree') {
+    agreeBtn.classList.toggle('selected');
+    disagreeBtn.classList.remove('selected');
+  } else {
+    disagreeBtn.classList.toggle('selected');
+    agreeBtn.classList.remove('selected');
   }
 }
 
@@ -368,14 +418,42 @@ function renderEval() {
       html += '</div>';
     }
 
-    if (run.grading && run.grading.expectations) {
-      html += '<div style="margin-top:1rem"><div style="font-size:0.8rem;font-weight:600;color:var(--muted);margin-bottom:0.5rem">ASSERTIONS</div>';
-      for (const exp of run.grading.expectations) {
-        const icon = exp.passed ? '<span class="grade-pass">&#10003;</span>' : '<span class="grade-fail">&#10007;</span>';
-        html += '<div class="grade-row"><span class="grade-icon">' + icon + '</span> ' + escapeHtml(exp.text) + '</div>';
-        if (exp.evidence) html += '<div class="grade-evidence">' + escapeHtml(exp.evidence) + '</div>';
-      }
+    html += '</div></div>';
+  }
+
+  const rubricGrading = group.rubricGrading;
+  if (rubricGrading && rubricGrading.criteria) {
+    const savedFb = feedback[evalName]?.criteria_feedback || [];
+    const savedMap = {};
+    for (const fb of savedFb) savedMap[fb.name] = fb;
+
+    html += '<div class="card"><div class="card-header">Rubric Grading</div><div class="card-body">';
+
+    for (const criterion of rubricGrading.criteria) {
+      const saved = savedMap[criterion.name] || {};
+      const safeName = criterion.name.replace(/[^a-zA-Z0-9]/g, '-');
+      const skillScore = criterion.with_skill?.score || 'unknown';
+      const baselineScore = criterion.baseline?.score || 'unknown';
+
+      html += '<div class="rubric-card"><div class="rubric-card-header">' + escapeHtml(criterion.name) + '</div>';
+      html += '<div class="rubric-card-body">';
+
+      html += '<div class="rubric-grades">';
+      html += '<div class="rubric-grade ' + skillScore + '"><div class="rubric-grade-label">With Skill</div>' + escapeHtml(skillScore);
+      if (criterion.with_skill?.evidence) html += '<div class="rubric-evidence">' + escapeHtml(criterion.with_skill.evidence) + '</div>';
       html += '</div>';
+      html += '<div class="rubric-grade ' + baselineScore + '"><div class="rubric-grade-label">Baseline</div>' + escapeHtml(baselineScore);
+      if (criterion.baseline?.evidence) html += '<div class="rubric-evidence">' + escapeHtml(criterion.baseline.evidence) + '</div>';
+      html += '</div></div>';
+
+      html += '<div class="rubric-toggle">';
+      html += '<span style="font-size:0.75rem;color:var(--muted)">Agree?</span>';
+      html += '<button data-criterion-id="' + safeName + '" data-vote="agree" class="' + (saved.user_agrees === true ? 'selected' : '') + '" onclick="toggleVote(\\'' + safeName + '\\', \\'agree\\')">Agree</button>';
+      html += '<button data-criterion-id="' + safeName + '" data-vote="disagree" class="' + (saved.user_agrees === false ? 'selected' : '') + '" onclick="toggleVote(\\'' + safeName + '\\', \\'disagree\\')">Disagree</button>';
+      html += '</div>';
+
+      html += '<input type="text" class="rubric-notes" id="rubric-notes-' + safeName + '" placeholder="Notes (optional)..." value="' + escapeHtml(saved.notes || '') + '">';
+      html += '</div></div>';
     }
     html += '</div></div>';
   }
@@ -383,12 +461,12 @@ function renderEval() {
   const prevFb = DATA.previousFeedback[evalName];
   if (prevFb) {
     html += '<div class="card"><div class="card-header">Previous Feedback</div>';
-    html += '<div class="card-body"><div class="prev-feedback">' + escapeHtml(prevFb) + '</div></div></div>';
+    html += '<div class="card-body"><div class="prev-feedback">' + escapeHtml(typeof prevFb === 'string' ? prevFb : prevFb.general_feedback || JSON.stringify(prevFb)) + '</div></div></div>';
   }
 
-  html += '<div class="card"><div class="card-header">Your Feedback</div>';
-  html += '<div class="card-body"><textarea class="feedback-textarea" id="feedback-input" placeholder="Leave feedback for this eval (optional)...">';
-  html += escapeHtml(feedback[evalName] || '');
+  html += '<div class="card"><div class="card-header">General Feedback</div>';
+  html += '<div class="card-body"><textarea class="feedback-textarea" id="general-feedback-input" placeholder="Anything else about this eval (optional)...">';
+  html += escapeHtml(feedback[evalName]?.general_feedback || '');
   html += '</textarea></div></div>';
 
   main.innerHTML = html;
@@ -401,53 +479,56 @@ function renderBenchmark() {
     main.innerHTML = '<div class="card"><div class="card-body" style="color:var(--muted);text-align:center;padding:3rem">No benchmark data provided.</div></div>';
     return;
   }
+
   let html = '';
-  if (bm.run_summary || bm.configurations) {
-    html += '<div class="card"><div class="card-header">Summary</div><div class="card-body">';
-    html += '<table class="bench-table"><thead><tr><th>Configuration</th><th>Pass Rate</th><th>Avg Tokens</th><th>Avg Duration</th></tr></thead><tbody>';
-    const summary = bm.run_summary || {};
-    for (const [config, stats] of Object.entries(summary)) {
-      const pr = stats.pass_rate ? (stats.pass_rate.mean * 100).toFixed(1) + '%' : 'N/A';
-      const tok = stats.tokens ? stats.tokens.mean.toLocaleString() : 'N/A';
-      const dur = stats.time_seconds ? stats.time_seconds.mean.toFixed(1) + 's' : 'N/A';
-      html += '<tr><td>' + escapeHtml(config) + '</td><td>' + pr + '</td><td>' + tok + '</td><td>' + dur + '</td></tr>';
+
+  if (bm.results) {
+    const r = bm.results;
+    html += '<div class="card"><div class="card-header">Overall</div><div class="card-body">';
+    html += '<table class="bench-table"><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>';
+    html += '<tr><td>Skill Wins</td><td>' + r.overall.skill_wins + '</td></tr>';
+    html += '<tr><td>Baseline Wins</td><td>' + r.overall.baseline_wins + '</td></tr>';
+    html += '<tr><td>Ties</td><td>' + r.overall.ties + '</td></tr>';
+    html += '<tr><td>Total Comparisons</td><td>' + r.overall.total_comparisons + '</td></tr>';
+    html += '<tr><td style="font-weight:600">Skill Win Rate</td><td style="font-weight:600">' + escapeHtml(r.overall.skill_win_rate) + '</td></tr>';
+    html += '</tbody></table>';
+    if (r.overall.recommendation) {
+      html += '<div class="recommendation ' + r.overall.recommendation + '">' + r.overall.recommendation.toUpperCase() + '</div>';
     }
-    if (bm.configurations) {
-      for (const config of bm.configurations) {
-        const agg = config.aggregate || {};
-        const pr = agg.mean_pass_rate != null ? (agg.mean_pass_rate * 100).toFixed(1) + '%' : 'N/A';
-        const tok = agg.mean_tokens != null ? agg.mean_tokens.toLocaleString() : 'N/A';
-        const dur = agg.mean_duration_seconds != null ? agg.mean_duration_seconds.toFixed(1) + 's' : 'N/A';
-        html += '<tr><td>' + escapeHtml(config.name) + '</td><td>' + pr + '</td><td>' + tok + '</td><td>' + dur + '</td></tr>';
+    html += '</div></div>';
+
+    if (r.per_eval && r.per_eval.length > 0) {
+      html += '<div class="card"><div class="card-header">Per-Eval Breakdown</div><div class="card-body">';
+      html += '<table class="bench-table"><thead><tr><th>Eval</th><th>Skill Wins</th><th>Baseline Wins</th><th>Ties</th><th>Total</th></tr></thead><tbody>';
+      for (const e of r.per_eval) {
+        html += '<tr><td>' + escapeHtml(e.eval_name) + '</td><td>' + e.skill_wins + '</td><td>' + e.baseline_wins + '</td><td>' + e.ties + '</td><td>' + e.total + '</td></tr>';
+      }
+      html += '</tbody></table></div></div>';
+    }
+
+    if (r.per_criterion) {
+      html += '<div class="card"><div class="card-header">Per-Criterion Breakdown</div><div class="card-body">';
+      html += '<table class="bench-table"><thead><tr><th>Criterion</th><th>Skill Wins</th><th>Baseline Wins</th><th>Ties</th></tr></thead><tbody>';
+      for (const [name, stats] of Object.entries(r.per_criterion)) {
+        html += '<tr><td>' + escapeHtml(name) + '</td><td>' + stats.wins + '</td><td>' + stats.loses + '</td><td>' + stats.ties + '</td></tr>';
+      }
+      html += '</tbody></table></div></div>';
+    }
+  }
+
+  if (bm.timing) {
+    html += '<div class="card"><div class="card-header">Timing (footnote)</div><div class="card-body">';
+    html += '<table class="bench-table"><thead><tr><th>Eval</th><th>Variant</th><th>Tokens</th><th>Duration</th></tr></thead><tbody>';
+    for (const [en, variants] of Object.entries(bm.timing)) {
+      for (const [variant, t] of Object.entries(variants)) {
+        const tokens = t.total_tokens ? t.total_tokens.toLocaleString() : 'N/A';
+        const dur = t.duration_ms ? (t.duration_ms / 1000).toFixed(1) + 's' : 'N/A';
+        html += '<tr><td>' + escapeHtml(en) + '</td><td>' + escapeHtml(variant) + '</td><td>' + tokens + '</td><td>' + dur + '</td></tr>';
       }
     }
     html += '</tbody></table></div></div>';
   }
-  if (bm.delta) {
-    html += '<div class="card"><div class="card-header">Delta</div><div class="card-body">';
-    html += '<table class="bench-table"><tbody>';
-    for (const [key, value] of Object.entries(bm.delta)) {
-      html += '<tr><td style="font-weight:600">' + escapeHtml(key) + '</td><td>' + escapeHtml(String(value)) + '</td></tr>';
-    }
-    html += '</tbody></table></div></div>';
-  }
-  const runs = bm.runs || [];
-  if (runs.length > 0) {
-    html += '<div class="card"><div class="card-header">Per-Eval Breakdown</div><div class="card-body">';
-    html += '<table class="bench-table"><thead><tr><th>Eval</th><th>Config</th><th>Pass Rate</th><th>Passed</th><th>Total</th></tr></thead><tbody>';
-    for (const run of runs) {
-      const r = run.result || run;
-      const pr = r.pass_rate != null ? (r.pass_rate * 100).toFixed(0) + '%' : 'N/A';
-      html += '<tr><td>' + escapeHtml(run.eval_name || '') + '</td><td>' + escapeHtml(run.configuration || '') + '</td>';
-      html += '<td>' + pr + '</td><td>' + (r.passed || 0) + '</td><td>' + (r.total || 0) + '</td></tr>';
-    }
-    html += '</tbody></table></div></div>';
-  }
-  if (bm.notes && Array.isArray(bm.notes) && bm.notes.length > 0) {
-    html += '<div class="card"><div class="card-header">Analyst Notes</div><div class="card-body"><ul style="padding-left:1.25rem">';
-    for (const note of bm.notes) html += '<li style="margin-bottom:0.5rem;font-size:0.85rem">' + escapeHtml(note) + '</li>';
-    html += '</ul></div></div>';
-  }
+
   main.innerHTML = html;
 }
 
@@ -460,7 +541,7 @@ function escapeHtml(str) {
 ${submitFn}
 
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'TEXTAREA') return;
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
   if (e.key === 'ArrowLeft') navigate(-1);
   if (e.key === 'ArrowRight') navigate(1);
 });
@@ -505,6 +586,7 @@ async function startServer(opts) {
   const iterDir = opts.iterDir;
   const skillName = opts.skillName;
   const benchmarkPath = opts.benchmark ? resolve(opts.benchmark) : null;
+  const rubricPath = opts.rubric ? resolve(opts.rubric) : null;
   const previousFeedback = opts.previousWorkspace
     ? loadPreviousData(resolve(opts.previousWorkspace))
     : {};
@@ -512,10 +594,10 @@ async function startServer(opts) {
 
   const server = createServer((req, res) => {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
-      // Re-scan workspace on each load (picks up new results)
       const runs = findRuns(iterDir);
       const benchmark = benchmarkPath ? readJson(benchmarkPath) : null;
-      const html = generateHtml(runs, skillName, benchmark, previousFeedback, true);
+      const rubric = rubricPath ? readJson(rubricPath) : null;
+      const html = generateHtml(runs, skillName, benchmark, rubric, previousFeedback, true);
       const buf = Buffer.from(html, 'utf-8');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': buf.length });
       res.end(buf);
@@ -601,10 +683,11 @@ function main() {
   // Static mode
   if (opts.output) {
     const benchmark = opts.benchmark ? readJson(resolve(opts.benchmark)) : null;
+    const rubric = opts.rubric ? readJson(resolve(opts.rubric)) : null;
     const previousFeedback = opts.previousWorkspace
       ? loadPreviousData(resolve(opts.previousWorkspace))
       : {};
-    const html = generateHtml(runs, opts.skillName, benchmark, previousFeedback, false);
+    const html = generateHtml(runs, opts.skillName, benchmark, rubric, previousFeedback, false);
     mkdirSync(dirname(opts.output), { recursive: true });
     writeFileSync(opts.output, html);
     console.log(`Review viewer written to: ${opts.output}`);

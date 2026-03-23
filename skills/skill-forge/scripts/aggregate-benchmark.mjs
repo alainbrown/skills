@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * Aggregate grading and timing data from an iteration directory into benchmark.json.
+ * Aggregate rubric-based grading data from an iteration directory into benchmark.json.
  *
  * Usage:
- *   node aggregate-benchmark.mjs <iteration-dir> --skill-name <name>
+ *   node aggregate-benchmark.mjs <iteration-dir> --skill-name <name> [--rubric <path>]
  *
- * Scans for grading.json and timing.json files within eval directories,
- * groups by configuration (with_skill / without_skill), and produces
- * benchmark.json with pass rates, timing, and token stats.
+ * Scans for grading.json files within eval directories. Grading uses a rubric-based
+ * schema where each criterion is scored as win/tie/lose for both with_skill and baseline.
  */
 
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'fs';
@@ -16,135 +15,157 @@ import { join, resolve } from 'path';
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const iterDir = args[0];
-  let skillName = 'unknown';
+  const opts = { iterDir: args[0], skillName: 'unknown', rubric: '' };
 
   for (let i = 1; i < args.length; i++) {
-    if (args[i] === '--skill-name' && args[i + 1]) {
-      skillName = args[i + 1];
-      i++;
-    }
+    if (args[i] === '--skill-name' && args[i + 1]) { opts.skillName = args[i + 1]; i++; }
+    else if (args[i] === '--rubric' && args[i + 1]) { opts.rubric = args[i + 1]; i++; }
   }
 
-  if (!iterDir) {
-    console.error('Usage: node aggregate-benchmark.mjs <iteration-dir> --skill-name <name>');
+  if (!opts.iterDir) {
+    console.error('Usage: node aggregate-benchmark.mjs <iteration-dir> --skill-name <name> [--rubric <path>]');
     process.exit(1);
   }
 
-  return { iterDir: resolve(iterDir), skillName };
+  opts.iterDir = resolve(opts.iterDir);
+  if (opts.rubric) opts.rubric = resolve(opts.rubric);
+  return opts;
 }
 
 function readJson(path) {
-  try {
-    return JSON.parse(readFileSync(path, 'utf-8'));
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(readFileSync(path, 'utf-8')); } catch { return null; }
 }
 
-function findRuns(iterDir) {
-  const runs = [];
+function findGradings(iterDir) {
+  const gradings = [];
 
   for (const evalName of readdirSync(iterDir).sort()) {
     const evalDir = join(iterDir, evalName);
     if (!statSync(evalDir).isDirectory()) continue;
     if (evalName === 'node_modules' || evalName.startsWith('.')) continue;
 
-    for (const variant of ['with_skill', 'without_skill', 'old_skill']) {
-      const variantDir = join(evalDir, variant);
-      if (!existsSync(variantDir) || !statSync(variantDir).isDirectory()) continue;
+    const grading = readJson(join(evalDir, 'grading.json'));
+    const metadata = readJson(join(evalDir, 'eval_metadata.json'));
+    const timing = {};
 
-      const grading = readJson(join(variantDir, 'grading.json'))
-        || readJson(join(evalDir, variant, 'grading.json'));
-      const timing = readJson(join(variantDir, 'timing.json'));
-      const metadata = readJson(join(evalDir, 'eval_metadata.json'));
+    for (const variant of ['with_skill', 'without_skill']) {
+      const t = readJson(join(evalDir, variant, 'timing.json'));
+      if (t) timing[variant] = t;
+    }
 
-      if (!grading && !timing) continue;
-
-      const expectations = grading?.expectations || [];
-      const passed = expectations.filter(e => e.passed).length;
-      const total = expectations.length;
-
-      runs.push({
-        eval_name: metadata?.eval_name || evalName,
-        configuration: variant,
-        result: {
-          pass_rate: total > 0 ? passed / total : 0,
-          passed,
-          total,
-          time_seconds: timing?.total_duration_seconds || 0,
-          tokens: timing?.total_tokens || 0,
-        },
-        expectations,
+    if (grading) {
+      gradings.push({
+        eval_name: grading.eval_name || metadata?.name || evalName,
+        criteria: grading.criteria || [],
+        timing,
       });
     }
   }
 
-  return runs;
+  return gradings;
 }
 
-function aggregate(runs) {
-  const groups = {};
+function aggregate(gradings) {
+  const criteriaStats = {};
+  let totalWins = 0;
+  let totalLoses = 0;
+  let totalTies = 0;
+  let totalComparisons = 0;
 
-  for (const run of runs) {
-    const config = run.configuration;
-    if (!groups[config]) groups[config] = [];
-    groups[config].push(run);
+  const evalSummaries = [];
+
+  for (const grading of gradings) {
+    let evalWins = 0;
+    let evalLoses = 0;
+    let evalTies = 0;
+
+    for (const criterion of grading.criteria) {
+      const name = criterion.name;
+      if (!criteriaStats[name]) criteriaStats[name] = { wins: 0, ties: 0, loses: 0 };
+
+      const skillScore = criterion.with_skill?.score;
+      const baselineScore = criterion.baseline?.score;
+
+      if (skillScore === 'win' && baselineScore !== 'win') {
+        criteriaStats[name].wins++;
+        evalWins++;
+        totalWins++;
+      } else if (baselineScore === 'win' && skillScore !== 'win') {
+        criteriaStats[name].loses++;
+        evalLoses++;
+        totalLoses++;
+      } else {
+        criteriaStats[name].ties++;
+        evalTies++;
+        totalTies++;
+      }
+      totalComparisons++;
+    }
+
+    evalSummaries.push({
+      eval_name: grading.eval_name,
+      skill_wins: evalWins,
+      baseline_wins: evalLoses,
+      ties: evalTies,
+      total: grading.criteria.length,
+    });
   }
 
-  const summary = {};
+  const winRate = totalComparisons > 0
+    ? Math.round((totalWins / totalComparisons) * 100)
+    : 0;
 
-  for (const [config, configRuns] of Object.entries(groups)) {
-    const passRates = configRuns.map(r => r.result.pass_rate);
-    const times = configRuns.map(r => r.result.time_seconds);
-    const tokens = configRuns.map(r => r.result.tokens);
+  let recommendation;
+  if (winRate >= 70) recommendation = 'ship';
+  else if (winRate >= 40) recommendation = 'iterate';
+  else recommendation = 'reconsider';
 
-    const mean = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-    const stddev = arr => {
-      const m = mean(arr);
-      return Math.sqrt(arr.reduce((sum, v) => sum + (v - m) ** 2, 0) / arr.length);
-    };
-
-    summary[config] = {
-      pass_rate: { mean: +mean(passRates).toFixed(3), stddev: +stddev(passRates).toFixed(3) },
-      time_seconds: { mean: +mean(times).toFixed(1), stddev: +stddev(times).toFixed(1) },
-      tokens: { mean: Math.round(mean(tokens)), stddev: Math.round(stddev(tokens)) },
-    };
-  }
-
-  // Compute delta between with_skill and without_skill
-  const delta = {};
-  if (summary.with_skill && summary.without_skill) {
-    delta.pass_rate = `${(summary.with_skill.pass_rate.mean * 100).toFixed(1)}% vs ${(summary.without_skill.pass_rate.mean * 100).toFixed(1)}%`;
-    delta.time_seconds = `${summary.with_skill.time_seconds.mean}s vs ${summary.without_skill.time_seconds.mean}s`;
-    delta.tokens = `${summary.with_skill.tokens.mean} vs ${summary.without_skill.tokens.mean}`;
-  }
-
-  return { summary, delta };
+  return {
+    overall: {
+      skill_wins: totalWins,
+      baseline_wins: totalLoses,
+      ties: totalTies,
+      total_comparisons: totalComparisons,
+      skill_win_rate: `${winRate}%`,
+      recommendation,
+    },
+    per_eval: evalSummaries,
+    per_criterion: criteriaStats,
+  };
 }
 
 function main() {
-  const { iterDir, skillName } = parseArgs();
-  const runs = findRuns(iterDir);
+  const opts = parseArgs();
+  const gradings = findGradings(opts.iterDir);
 
-  if (runs.length === 0) {
-    console.error(`No runs found in ${iterDir}`);
+  if (gradings.length === 0) {
+    console.error(`No grading data found in ${opts.iterDir}`);
     process.exit(1);
   }
 
-  const { summary, delta } = aggregate(runs);
+  const rubric = opts.rubric ? readJson(opts.rubric) : null;
 
   const benchmark = {
     metadata: {
-      skill_name: skillName,
+      skill_name: opts.skillName,
       timestamp: new Date().toISOString(),
     },
-    runs,
-    run_summary: summary,
-    delta,
+    rubric: rubric?.criteria || null,
+    results: aggregate(gradings),
   };
 
-  const outPath = join(iterDir, 'benchmark.json');
+  // Collect timing as footnote
+  const timingFootnote = {};
+  for (const g of gradings) {
+    if (g.timing && Object.keys(g.timing).length > 0) {
+      timingFootnote[g.eval_name] = g.timing;
+    }
+  }
+  if (Object.keys(timingFootnote).length > 0) {
+    benchmark.timing = timingFootnote;
+  }
+
+  const outPath = join(opts.iterDir, 'benchmark.json');
   writeFileSync(outPath, JSON.stringify(benchmark, null, 2) + '\n');
   console.log(`Benchmark written to: ${outPath}`);
 }
