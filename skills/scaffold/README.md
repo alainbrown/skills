@@ -2,19 +2,6 @@
 
 Scaffold a full-stack JavaScript/TypeScript project — like `create-next-app` but for the entire stack.
 
-## Install
-
-**Claude Code:**
-```bash
-/plugin marketplace add alainbrown/skills
-/plugin install scaffold@alainbrown-skills
-```
-
-**Skills CLI:**
-```bash
-npx skills add alainbrown/skills --skill scaffold
-```
-
 ## Usage
 
 ```

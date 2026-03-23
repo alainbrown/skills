@@ -2,14 +2,6 @@
 
 Creates publishable agent skills with proper plugin structure, eval-backed quality, and documentation.
 
-## Install
-
-```bash
-# Claude Code plugin (includes all skills)
-/plugin marketplace add alainbrown/skills
-/plugin install skill-forge@alainbrown-skills
-```
-
 ## Usage
 
 ```bash
