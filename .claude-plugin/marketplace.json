@@ -39,6 +39,14 @@
       "skills": [
         "./skills/scaffold"
       ]
+    },
+    {
+      "name": "user-journey",
+      "description": "Generate Playwright E2E test specs for user journeys — login flows, checkout funnels, onboarding wizards, or any multi-step browser interaction",
+      "source": "./",
+      "skills": [
+        "./skills/user-journey"
+      ]
     }
   ]
 }
