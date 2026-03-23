@@ -357,7 +357,6 @@ Create `skills/<skill-name>/README.md` with these sections:
 
 **Always include:**
 - **Title and one-line description** (from SKILL.md frontmatter)
-- **Install** (both the marketplace add and the specific skill install command, templated from plugin metadata: `/plugin marketplace add <owner>/<repo-name>` and `/plugin install <skill-name>@<owner>-<repo-name>`)
 - **Usage** (example prompts that trigger the skill, from evals or conversation)
 - **What it does** (expanded description)
 - **Features** (extracted from SKILL.md section headers — each major phase or capability becomes a bullet)

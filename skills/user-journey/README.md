@@ -2,14 +2,6 @@
 
 Generate Playwright E2E test specs for user journeys — login flows, checkout funnels, onboarding wizards, CRUD panels, conditional form wizards, or any multi-step browser interaction.
 
-## Install
-
-**Claude Code:**
-```bash
-/plugin marketplace add alainbrown/skills
-/plugin install user-journey@alainbrown-skills
-```
-
 ## Usage
 
 Just describe the flow you want tested. The skill triggers on prompts like:
