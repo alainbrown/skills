@@ -146,14 +146,6 @@ scratch.
 Skills work with AI coding agents that support them, including Claude Code,
 Gemini CLI, OpenAI Codex, and other agents with skill/plugin support.
 
-## Install
-
-**Claude Code:**
-\`\`\`bash
-/plugin marketplace add <owner>/<repo-name>
-/plugin install <skill-name>@<owner>-<repo-name>
-\`\`\`
-
 ## Usage
 
 After installing, just talk to your agent naturally. Skills trigger
@@ -168,8 +160,6 @@ invoke a skill directly by name (e.g., `/skill-name`).
 4. Skills guide the agent through a structured workflow — they don't
    replace its judgment, they focus it
 ```
-
-Fill in `<owner>`, `<repo-name>`, and `<description>` from the plugin metadata.
 
 **If a README already exists**, ask:
 
