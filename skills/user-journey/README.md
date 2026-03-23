@@ -7,6 +7,7 @@ Generate Playwright E2E test specs for user journeys — login flows, checkout f
 **Claude Code:**
 ```bash
 /plugin marketplace add alainbrown/skills
+/plugin install user-journey@alainbrown-skills
 ```
 
 ## Usage
