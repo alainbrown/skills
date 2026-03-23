@@ -113,6 +113,7 @@ Gemini CLI, OpenAI Codex, and other agents with skill/plugin support.
 **Claude Code:**
 \`\`\`bash
 /plugin marketplace add <owner>/<repo-name>
+/plugin install <skill-name>@<owner>-<repo-name>
 \`\`\`
 
 ## Usage
@@ -356,7 +357,7 @@ Create `skills/<skill-name>/README.md` with these sections:
 
 **Always include:**
 - **Title and one-line description** (from SKILL.md frontmatter)
-- **Install** (templated from plugin metadata)
+- **Install** (both the marketplace add and the specific skill install command, templated from plugin metadata: `/plugin marketplace add <owner>/<repo-name>` and `/plugin install <skill-name>@<owner>-<repo-name>`)
 - **Usage** (example prompts that trigger the skill, from evals or conversation)
 - **What it does** (expanded description)
 - **Features** (extracted from SKILL.md section headers — each major phase or capability becomes a bullet)
@@ -391,13 +392,17 @@ du -sh <skill-name>-workspace/
 
 If delete, remove it. If keep, make sure `*-workspace/` is in `.gitignore`.
 
+### Eval artifacts cleanup
+
+Also delete the `evals/` directory inside the skill folder (`skills/<skill-name>/evals/`). The eval test cases and metadata were used during development and aren't part of the published skill. The eval results are already captured in the README — the raw files don't need to ship.
+
 ### Optional commit
 
 Offer to commit the skill files:
 
-> "Ready to commit? I'll stage just the skill files — SKILL.md, README.md, and any references. Not the workspace."
+> "Ready to commit? I'll stage just the skill files — SKILL.md, README.md, and any references. Not the workspace or evals."
 
-If they agree, stage only the skill directory contents (not the workspace) and commit with a descriptive message.
+If they agree, stage only the skill directory contents (not the workspace or evals) and commit with a descriptive message.
 
 ---
 
