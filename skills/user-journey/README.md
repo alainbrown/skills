@@ -32,7 +32,8 @@ Guides the agent through a structured 5-phase workflow to produce production-qua
 
 ## Features
 
-- **Three discovery modes** — conversation-driven, codebase-driven, or browser-driven (using agent-browser to walk the running app)
+- **Three discovery modes** — conversation-driven, codebase-driven, or browser-driven (using Playwright MCP to walk the running app)
+- **MCP-aware** — detects Playwright MCP for live browser discovery, and documentation MCPs (Context7) for up-to-date API verification. Neither is required — the skill works without them.
 - **Role-based locators first** — `getByRole`, `getByLabel`, `getByText` over CSS selectors or data-testid
 - **`test.step()` for every phase** — readable trace output, failures pinpointed to the exact journey step
 - **Web-first assertions** — auto-waiting `toBeVisible()`, `toHaveURL()`, no `waitForTimeout()` calls

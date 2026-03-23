@@ -41,6 +41,32 @@ User describes what they want tested
 
 ---
 
+## Phase 0: Detect Available Tools
+
+Before starting, check what MCP servers are available in the environment. These aren't required — the skill works fine without them — but they significantly improve the quality of generated tests.
+
+### Playwright MCP
+
+Check if Playwright MCP tools are available (look for tools like `mcp__*playwright*__browser_navigate`, `mcp__*playwright*__browser_snapshot`, `mcp__*playwright*__browser_click`, etc.).
+
+**If available:** Browser-driven discovery (Option C) becomes the recommended approach when the app is running locally. The Playwright MCP lets you actually navigate the app, take snapshots, interact with forms, and observe the real UI — producing much more accurate test specs than guessing from code alone.
+
+**If not available and the user wants browser-driven discovery:** Suggest setting it up:
+
+> "Browser-driven discovery works best with the Playwright MCP server, which lets me navigate your running app and observe the actual UI. Want me to help you set it up? It's typically added with `claude mcp add playwright -- npx @anthropic-ai/mcp-playwright` or via your MCP config."
+
+Don't block on this — offer it, then fall back to conversation-driven or codebase-driven if the user declines.
+
+### Documentation MCP (Context7 or similar)
+
+Check if a documentation-fetching MCP is available (e.g., Context7 tools like `mcp__*context7*__query-docs`).
+
+**If available:** Use it in Phase 4 (Generate) to pull the latest Playwright API docs before writing code. This ensures you're using current locator methods, assertion APIs, and configuration options rather than relying on potentially outdated training data.
+
+**If not available:** Proceed normally. The Playwright patterns in this skill are solid — the docs MCP is a nice-to-have for verifying edge cases, not a requirement.
+
+---
+
 ## Phase 1: Discover the Journey
 
 You need to understand what the user wants tested. There are three ways to learn this — ask which approach the user prefers, or pick the most practical one based on context.
@@ -67,16 +93,25 @@ Explore the project to discover routes, pages, and components. Look for:
 
 Build the journey from what the code reveals. Present your understanding to the user for confirmation — the code shows *what exists*, but only the user knows *which flows matter*.
 
-### Option C: Browser-driven
+### Option C: Browser-driven (recommended when Playwright MCP is available)
 
-If the app is running locally (dev server), use agent-browser to walk through it:
+If the app is running locally (dev server) and the Playwright MCP is available, use it to walk through the app:
 
-1. Navigate to the starting URL
-2. Take snapshots at each step to understand the UI
-3. Interact with forms, buttons, and navigation
-4. Record the sequence of actions and resulting page states
+1. **Navigate** to the starting URL using `browser_navigate`
+2. **Snapshot** the page at each step using `browser_snapshot` to understand the UI structure, visible elements, labels, and roles
+3. **Interact** with forms (`browser_fill_form`), buttons (`browser_click`), and navigation
+4. **Record** the sequence of actions, the locators that worked, and the resulting page states
 
-This is the most accurate approach for complex UIs where the codebase alone doesn't tell the full story. Convert what you observe into a journey spec.
+This is the most accurate approach because you're observing the real DOM — you see the actual labels, roles, and element structure. The locators in your generated spec will match reality instead of being guesses.
+
+**Key Playwright MCP tools for discovery:**
+- `browser_navigate` — go to a URL
+- `browser_snapshot` — get the accessibility tree (shows roles, names, and labels — exactly what you need for locators)
+- `browser_click` — click elements by text or ref
+- `browser_fill_form` — fill form fields
+- `browser_take_screenshot` — visual reference if the snapshot isn't enough
+
+If the Playwright MCP is not available, you can still do browser-driven discovery using any agent-browser tooling in the environment, or fall back to Options A/B.
 
 You can combine approaches — for example, read the codebase to understand routes, then browse the app to discover the actual UI flow, then confirm with the user.
 
@@ -202,6 +237,8 @@ Only add edge case tests if the user wants them — don't over-generate.
 ---
 
 ## Phase 4: Generate the Test
+
+If a documentation MCP (like Context7) is available, query it for the latest Playwright test API docs before writing code — especially for locator methods, assertion APIs, or configuration options you're less certain about. This takes seconds and prevents generating code with deprecated or renamed APIs.
 
 Write clean, readable Playwright specs following these patterns.
 
