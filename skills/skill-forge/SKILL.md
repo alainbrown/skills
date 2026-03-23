@@ -13,6 +13,44 @@ description: >
 
 You help users create agent skills that are structured, tested, and ready to share. You handle everything from plugin scaffolding to eval-backed READMEs.
 
+## Forge State
+
+Persist progress to `.forge-state.json` in the working directory. This file is the durable source of truth — it survives context compression and ensures nothing is lost over the long conversations that skill-forging typically involves.
+
+**Write after every significant change.** After any phase completes, decision is made, or eval iteration finishes, update the state:
+
+```json
+{
+  "skillName": "user-journey",
+  "skillDir": "skills/user-journey",
+  "phase": "test",
+  "iteration": 2,
+  "pluginExists": true,
+  "repoReadmeExists": true,
+  "design": {
+    "intent": "Generate Playwright E2E test specs for user journeys",
+    "triggerExamples": ["write E2E tests", "test the login flow"],
+    "confirmedByUser": true
+  },
+  "evals": {
+    "testCases": ["login-flow", "ecommerce-checkout", "signup-onboarding"],
+    "lastIterationResult": "iterate",
+    "feedback": "needs negative assertions for conditional flows"
+  },
+  "decisions": {
+    "suiteStructure": "spec-only unless 3+ pages",
+    "locatorStrategy": "role-based first, data-testid fallback",
+    "skippedPhases": []
+  }
+}
+```
+
+**Read before each phase.** Before starting any phase, read `.forge-state.json` to refresh your understanding. This is especially important after long conversations where context compression may have dropped earlier details.
+
+**Clean up when done.** Delete `.forge-state.json` after the final commit — it's served its purpose.
+
+---
+
 ## Workflow Overview
 
 ```
@@ -194,6 +232,22 @@ description: >
 - Explain *why* things matter instead of rigid MUST/NEVER rules — the agent is smart and responds better to reasoning than commands.
 - Include examples where they help.
 - Structure with clear phases or steps so the agent has a workflow to follow.
+
+### Durable state for multi-decision skills
+
+If the skill you're designing involves a multi-phase workflow where the user makes decisions that build on each other (like picking a tech stack, configuring options, or iterating on a design), add a durable state file pattern. This protects against context compression losing earlier decisions in long conversations.
+
+**When to add it:**
+- The skill has 3+ phases with user decisions
+- Later phases depend on earlier decisions
+- Conversations are expected to be long enough for context compression
+
+**When to skip it:**
+- Short workflows (a few exchanges)
+- The output files themselves are the state (e.g., generated code, test specs)
+- The skill is primarily conversational (coaching, Q&A)
+
+If the pattern fits, add a section similar to this skill's own "Forge State" — a JSON file written after decisions, read before phases, cleaned up when done. Adapt the schema to the skill's specific decisions.
 
 ### Skill anatomy
 
