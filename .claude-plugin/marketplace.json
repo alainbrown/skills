@@ -31,6 +31,14 @@
       "skills": [
         "./skills/skill-forge"
       ]
+    },
+    {
+      "name": "scaffold",
+      "description": "Scaffolds a full-stack JS/TS project — picks technologies for each layer, runs the CLI, and wires up all the boilerplate",
+      "source": "./",
+      "skills": [
+        "./skills/scaffold"
+      ]
     }
   ]
 }
