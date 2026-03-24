@@ -63,6 +63,14 @@
       "skills": [
         "./skills/ml-architect"
       ]
+    },
+    {
+      "name": "agent-forge",
+      "description": "Create specialized TypeScript agents by composing AI SDK, Chat SDK, MCP tools, and sandboxes — interactive wizard that scaffolds standalone agent projects with the right interface, tools, and model configuration",
+      "source": "./",
+      "skills": [
+        "./skills/agent-forge"
+      ]
     }
   ]
 }
