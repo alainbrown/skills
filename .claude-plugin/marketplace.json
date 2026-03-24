@@ -55,6 +55,14 @@
       "skills": [
         "./skills/render"
       ]
+    },
+    {
+      "name": "ml-architect",
+      "description": "Structured interactive workflow for designing and producing runnable ML pipelines — problem definition, data strategy, model selection, training, evaluation, and deployment with cascading invalidation",
+      "source": "./",
+      "skills": [
+        "./skills/ml-architect"
+      ]
     }
   ]
 }
