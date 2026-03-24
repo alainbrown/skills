@@ -68,7 +68,9 @@ Acts as an ML architect — inspects your codebase, asks deep questions about th
 
 ## Eval results
 
-Tested across 4 scenarios with 6 rubric criteria (codebase-awareness, problem-definition-depth, structured-plan, recommendation-quality, state-management, expert-tone). Each scenario compared skill response vs. baseline (no skill).
+### First-response evals
+
+Tested across 4 scenarios with 6 rubric criteria (codebase-awareness, problem-definition-depth, structured-plan, recommendation-quality, state-management, expert-tone). Each scenario compared skill's first response vs. baseline (no skill).
 
 | Metric | Result |
 |--------|--------|
@@ -77,7 +79,25 @@ Tested across 4 scenarios with 6 rubric criteria (codebase-awareness, problem-de
 | Ties | 10/24 (42%) |
 | Skill win-or-tie | 100% |
 
-**Where the skill adds clear value:** Problem definition depth (4/4 wins — always asks before assuming), state management (4/4 wins), expert tone (4/4 wins), codebase awareness (3/4 wins). **Where the baseline holds up:** Recommendation quality ties across all 4 evals — the baseline provides concrete code faster, the skill provides deeper analytical framing. Neither approach dominates; they serve different moments in the workflow.
+**Where the skill adds clear value:** Problem definition depth (4/4 wins — always asks before assuming), state management (4/4 wins), expert tone (4/4 wins), codebase awareness (3/4 wins). **Where the baseline holds up:** Recommendation quality ties across all 4 evals — the baseline provides concrete code faster, the skill provides deeper analytical framing.
+
+### Multi-turn eval (full session through output generation)
+
+A full design session for the fine-tune text classifier scenario — 10+ turns from codebase scan through pipeline generation, including a mid-session infrastructure change (CPU/Kubernetes to Jetson Orin Nano) that triggers cascading invalidation. Graded on 5 criteria.
+
+| Criterion | Skill | Baseline |
+|-----------|-------|----------|
+| State consistency | **win** | lose |
+| Section coherence | **win** | tie |
+| Cascade correctness | **win** | tie |
+| Output completeness | **win** | lose |
+| Output quality | **win** | tie |
+
+Key findings:
+- **Cascading invalidation works.** Formal transitive walk evaluated all 7 completed sections, classified each as "still valid" or "needs revision" with per-section reasoning. The baseline handled the change practically but without structured re-evaluation.
+- **Probe notebook is a real differentiator.** The skill produced a 7-probe feasibility notebook (data profiling, tokenization analysis, VRAM estimation, ONNX export test, TF-IDF baseline, model loading, library compat). The baseline skipped this entirely.
+- **Design spec captures what the baseline doesn't.** Rejected alternatives per section, cascade before/after analysis, and per-section rationale — the reasoning trail for "why did we choose this?" six months later.
+- **Cost: the skill took 2x longer** (14 min / 57 tool calls vs. 7.5 min / 30). The structured workflow adds overhead that's worth it for production pipelines.
 
 ## Design decisions
 
