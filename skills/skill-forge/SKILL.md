@@ -239,6 +239,41 @@ If the skill you're designing involves a multi-phase workflow where the user mak
 
 If the pattern fits, add a section similar to this skill's own "Forge State" — a JSON file written after decisions, read before phases, cleaned up when done. Adapt the schema to the skill's specific decisions.
 
+**Add a `context` field for conversational nuance.** Alongside structured decision fields, include a free-form `context` object that captures things the user said that don't fit the schema — intent, audience details, style preferences, future considerations. This is especially valuable when subagents consume the state file and need tonal or contextual awareness beyond the rigid fields.
+
+**Design the state as a subagent contract.** If the skill has a generation phase that uses subagents (see below), the state file is the only context those subagents receive. Every field a subagent needs must be in the schema — don't assume subagents can infer from conversation history.
+
+### Subagent strategy for generation phases
+
+If the skill has a design phase (interactive, conversational) followed by a generation phase (producing code, files, or artifacts), consider using subagents for the generation phase. The design phase stays in the main conversation where back-and-forth is natural. The generation phase delegates to subagents that receive only the state file + relevant reference files — no conversation history.
+
+**Why this helps:** By the time generation starts, the context window is full of interview conversation — tentative ideas, rejected options, corrections. Subagents with clean, focused context produce more accurate output than the main conversation generating code inline.
+
+**Pattern:**
+- Each subagent gets the state file + 1-2 relevant reference files
+- Subagents run in parallel where their outputs don't depend on each other
+- Post-subagent verification stays in the main conversation (install, compile check, summary)
+
+### Guidance for code-generating skills
+
+If the skill being designed generates code (scaffolds projects, writes implementations, produces config files), the reference files need special attention. Library APIs change frequently — hardcoding exact code in references creates fragile skills that break when dependencies update.
+
+**Separate stable from unstable knowledge in references:**
+
+| Stable (hardcode) | Unstable (delegate to LLM + docs) |
+|---|---|
+| Architecture patterns | API signatures and method names |
+| Decision logic (when to use X vs Y) | Package versions |
+| Tool/component shapes (name, schema, what it does) | Constructor arguments and config options |
+| Security requirements (timeouts, path validation) | Model identifiers |
+| Project structure (directory layouts) | Framework-specific boilerplate |
+
+**For unstable patterns, add verification gates:**
+- Add "Known fragile patterns" sections to reference files listing which patterns change between library versions
+- Instruct the skill to suggest documentation tools (context7) at the start — "For the most accurate output, you can add context7. It's optional."
+- If docs tools are unavailable, flag uncertain patterns with `// TODO: verify` comments instead of guessing
+- The skill should never require MCP to function — it should work well without it and work better with it
+
 ### Skill anatomy
 
 ```
