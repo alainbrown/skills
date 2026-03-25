@@ -9,11 +9,11 @@
   },
   "plugins": [
     {
-      "name": "drill",
-      "description": "Interactive coaching skill that drills users on any topic through multiple-choice and fill-in-the-blank questions",
+      "name": "train",
+      "description": "Multi-faceted training coach with five modes (quiz, flashcard, teach-back, scenario, practice) plus adaptive difficulty, browser UI, and cross-session progression tracking",
       "source": "./",
       "skills": [
-        "./skills/drill"
+        "./skills/train"
       ]
     },
     {
@@ -48,15 +48,7 @@
         "./skills/user-journey"
       ]
     },
-    {
-      "name": "render",
-      "description": "Create interactive, LLM-powered browser experiences — wizards, forms, chat interfaces, and conversational workflows rendered as React components",
-      "source": "./",
-      "skills": [
-        "./skills/render"
-      ]
-    },
-    {
+{
       "name": "ml-architect",
       "description": "Structured interactive workflow for designing and producing runnable ML pipelines — problem definition, data strategy, model selection, training, evaluation, and deployment with cascading invalidation",
       "source": "./",

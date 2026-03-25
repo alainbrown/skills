@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{TITLE}}</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@19/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@19/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    /* Base styles — dark theme, clean, distraction-free */
+    body {
+      background: #0a0a0a;
+      color: #e5e5e5;
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    pre {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 12px 16px;
+      overflow-x: auto;
+      font-size: 14px;
+    }
+    ::selection { background: #3b82f6; color: white; }
+
+    /* AGENT: additional styles */
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module">
+    // ─── Runtime hooks — available to all agent-generated components ───
+
+    /**
+     * useContent() — subscribes to content.json updates via SSE.
+     * Returns the current content object, or null before first load.
+     * Auto-updates when the agent writes new content.
+     */
+    function useContent() {
+      const [content, setContent] = React.useState(null);
+      React.useEffect(() => {
+        // SSE for live updates
+        const evtSource = new EventSource('/events');
+        evtSource.onmessage = (e) => {
+          try { setContent(JSON.parse(e.data)); } catch {}
+        };
+        // Also fetch once immediately (SSE may miss the first event)
+        fetch('/content')
+          .then((r) => r.json())
+          .then((data) => { if (data) setContent(data); })
+          .catch(() => {});
+        return () => evtSource.close();
+      }, []);
+      return content;
+    }
+
+    /**
+     * sendResults(data) — sends interaction data to the agent via the server.
+     * The server prints the JSON to stdout, which the agent reads.
+     * Adds a timestamp automatically.
+     */
+    function sendResults(data) {
+      fetch('/results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, ts: Date.now() }),
+      }).catch(() => {});
+    }
+
+    /**
+     * useKeyboard(keyMap) — registers keyboard shortcuts.
+     * keyMap: { 'Enter': () => ..., '1': () => ..., ' ': () => ... }
+     */
+    function useKeyboard(keyMap) {
+      React.useEffect(() => {
+        const handler = (e) => {
+          // Don't intercept when typing in an input/textarea
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+          const fn = keyMap[e.key];
+          if (fn) { e.preventDefault(); fn(e); }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+      }, [keyMap]);
+    }
+
+    // ─── Loading screen (shown before agent injects components) ───
+
+    function Loading() {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-zinc-500 text-lg">Connecting...</div>
+        </div>
+      );
+    }
+
+    // ─── Agent-generated components below ───
+    // The agent replaces this comment with React components.
+    // The top-level component must be named App.
+
+    {/* AGENT: components */}
+
+    // ─── Mount ───
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
