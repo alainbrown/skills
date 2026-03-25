@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,7 +10,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
-      darkMode: 'class',
+      darkMode: 'class',  // retained so agent components can opt into dark if needed
       theme: {
         extend: {
           fontFamily: {
@@ -22,24 +22,24 @@
     };
   </script>
   <style>
-    /* Base styles — dark theme, clean, distraction-free */
+    /* Base styles — light theme, clean, distraction-free */
     body {
-      background: #0a0a0a;
-      color: #e5e5e5;
+      background: #f5f5f5;
+      color: #1a1a1a;
       margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
     code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     pre {
-      background: #1a1a1a;
-      border: 1px solid #333;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
       border-radius: 6px;
       padding: 12px 16px;
       overflow-x: auto;
       font-size: 14px;
     }
-    ::selection { background: #3b82f6; color: white; }
+    ::selection { background: #2563eb; color: white; }
 
     /* AGENT: additional styles */
   </style>
@@ -108,7 +108,7 @@
     function Loading() {
       return (
         <div className="flex items-center justify-center min-h-screen">
-          <div className="text-zinc-500 text-lg">Connecting...</div>
+          <div className="text-zinc-400 text-lg">Connecting...</div>
         </div>
       );
     }
