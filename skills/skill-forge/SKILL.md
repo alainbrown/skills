@@ -70,11 +70,12 @@ The answer determines scope — targeted fix (one criterion) vs. broad re-evalua
 
 ### Reconstruct the rubric
 
-Phase 5 deletes eval artifacts, so prior rubrics won't exist on disk. Reconstruct:
+Phase 5 deletes eval artifacts, so prior rubrics won't exist on disk. Reconstruct from the README:
 
-1. Extract criteria and results from the README's eval section (if present)
-2. Draft an updated `evals/rubric.json` — keep criteria that still matter, add new ones based on the user's motivation, drop any that are no longer relevant
-3. Note the prior win rates so you can compare after the new run
+1. **Find the criteria.** The README's "Where the skill adds value" and "Where the baseline holds up" sections describe what the skill was graded on, but in prose — not as named criteria. Convert each distinct advantage or gap into a criterion with a name and description. For example, "baseline never security-hardens tools" becomes `{ "name": "security-hardening", "description": "Tools include path traversal protection, timeouts, size limits" }`.
+2. **Recover prior scores.** The README's eval results table has win/tie/loss counts per eval. Note the overall win rate and per-eval breakdown so you can compare after the new run.
+3. **Revise for this re-eval.** Keep criteria that still matter, add new ones based on the user's motivation (e.g., "reference-utilization" if testing structural changes), drop any that are no longer relevant.
+4. **Save to `evals/rubric.json`** (schema in `references/eval-workflow.md`).
 
 Share the updated rubric with the user before proceeding.
 
@@ -183,11 +184,17 @@ Key questions (ask one at a time, not all at once):
 
 ### Research
 
-Check available tools for research — MCP servers, documentation, similar skills in the repo. Come prepared with context to reduce burden on the user.
+Before drafting, gather domain knowledge so you're not relying solely on the user to explain everything.
+
+- **Similar skills in the repo:** Read other skills' SKILL.md files to understand the conventions, depth, and patterns already in use. Note what works and borrow structural patterns.
+- **MCP tools:** If context7 or similar documentation tools are available, look up APIs, libraries, or frameworks the skill will reference. Extract the patterns the skill needs to teach — don't just note that docs exist.
+- **The user's conversation history:** If this is a "turn this into a skill" request, the conversation itself is the richest source. Extract the exact tool calls, decision points, corrections, and output formats observed.
+
+Synthesize research into concrete inputs for the SKILL.md: which phases does the skill need, what decisions does the user make, what are the common edge cases, what output format works.
 
 ### Write the SKILL.md
 
-Create `skills/<skill-name>/SKILL.md` with:
+Create `skills/<skill-name>/SKILL.md`. Read `references/skill-writing.md` for detailed guidance on frontmatter trigger descriptions, instruction density (rigid vs. flexible), common anti-patterns, when to split content into references, and how to structure phases.
 
 **Frontmatter:**
 ```yaml
@@ -199,12 +206,12 @@ description: >
 ---
 ```
 
-**Body guidelines:**
-- Keep under 500 lines. If approaching the limit, use reference files in a `references/` subdirectory.
-- Use imperative form in instructions.
-- Explain *why* things matter instead of rigid MUST/NEVER rules — the agent is smart and responds better to reasoning than commands.
-- Include examples where they help.
-- Structure with clear phases or steps so the agent has a workflow to follow.
+**Key principles:**
+- Keep under 500 lines. Use reference files in a `references/` subdirectory for templates, schemas, and conditional content.
+- Be rigid about things that must be correct (security, output formats, sequences). Be flexible about things that depend on context (naming, architecture, recommendations).
+- Explain *why* things matter — the agent responds better to reasoning than commands.
+- Structure with named phases that have clear entry conditions, substeps, and exit conditions.
+- Include examples where behavior would be ambiguous without one.
 
 ### Durable state for multi-decision skills
 
@@ -344,7 +351,26 @@ After grading, launch the review viewer — it shows outputs side-by-side with r
 
 ### Iterate
 
-If the recommendation is "iterate," improve the SKILL.md to address the criteria it lost on. Rerun the evals. Repeat until the user is satisfied or the skill clearly wins on the criteria that matter.
+If the recommendation is "iterate," diagnose the gaps before making changes. Don't just "improve it" — understand *why* the skill underperformed, then make targeted edits.
+
+**Step 1: Diagnose.** For each criterion the skill tied or lost on, re-read the with-skill and baseline outputs side by side. Answer:
+- What did the baseline do that matched or beat the skill?
+- What did the skill's output miss — a step it skipped, guidance it ignored, or a pattern it got wrong?
+- Is there a specific section of the SKILL.md or a reference file where better instructions would have changed the outcome?
+
+**Step 2: Categorize.** Each gap falls into one of these buckets:
+
+| Category | Example | Fix |
+|----------|---------|-----|
+| Missing instruction | Skill doesn't tell agent to check for X | Add the instruction to SKILL.md |
+| Unclear guidance | Agent read the instruction but interpreted it wrong | Rewrite with an example or more specificity |
+| Reference gap | Template is missing a pattern the agent needed | Update the reference file |
+| Structural issue | Agent missed a step because it's buried in a long section | Extract to a reference or restructure the phase |
+| Baseline caught up | LLM now does this well without guidance | Not fixable — consider dropping the criterion or accepting the tie |
+
+**Step 3: Propose.** Draft specific edits — quote the current text, show the proposed replacement, explain why. Present to the user before applying. Group by file (SKILL.md vs. specific references).
+
+**Step 4: Apply and rerun.** Make the edits, rerun the evals. Compare against both the prior iteration and the original baseline. Repeat until the user is satisfied or the remaining gaps are in the "baseline caught up" category.
 
 ---
 
