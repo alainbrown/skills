@@ -72,7 +72,7 @@ The answer determines scope — targeted fix (one criterion) vs. broad re-evalua
 
 Phase 5 deletes eval artifacts, so prior rubrics won't exist on disk. Reconstruct from the README:
 
-1. **Find the criteria.** The README's "Where the skill adds value" and "Where the baseline holds up" sections describe what the skill was graded on, but in prose — not as named criteria. Convert each distinct advantage or gap into a criterion with a name and description. For example, "baseline never security-hardens tools" becomes `{ "name": "security-hardening", "description": "Tools include path traversal protection, timeouts, size limits" }`.
+1. **Find the criteria.** The README's "Where the skill adds value" and "Where the baseline holds up" sections describe what the skill was graded on, but in prose — not as named criteria. Convert each distinct advantage or gap into a criterion with a name and description. For example, "baseline never security-hardens tools" becomes `{ "name": "security-hardening", "description": "Tools include path traversal protection, timeouts, size limits" }`. If no prior eval sections exist, derive criteria from the README's Features and Edge Cases sections, plus the SKILL.md content.
 2. **Recover prior scores.** The README's eval results table has win/tie/loss counts per eval. Note the overall win rate and per-eval breakdown so you can compare after the new run.
 3. **Revise for this re-eval.** Keep criteria that still matter, add new ones based on the user's motivation (e.g., "reference-utilization" if testing structural changes), drop any that are no longer relevant.
 4. **Save to `evals/rubric.json`** (schema in `references/eval-workflow.md`).
