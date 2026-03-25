@@ -28,26 +28,18 @@ npx skills add alainbrown/skills --all # install all
 After installing, just talk to your agent naturally. Skills trigger automatically when your request matches what they do:
 
 ```
-# triggers git-squash
+train me on React hooks
+build me a Slack bot that reviews PRs
 clean up my commits before I open a PR
-
-# triggers user-journey
 write E2E tests for my checkout flow
-
-# triggers scaffold
 set up a new Next.js project with auth and payments
 ```
 
-You can also invoke a skill directly by name:
-
-```
-/git-squash
-/skill-forge
-```
+You can also invoke a skill directly by name: `/train`, `/agent-forge`, `/git-squash`, etc.
 
 ## How skills work
 
-1. When you install this plugin, each skill's name and description are loaded into your agent's context
-2. When you send a message, your agent checks if any skill matches your request
-3. If a match is found, the full SKILL.md is loaded and the agent follows its instructions
+1. Each skill's name and description are loaded into your agent's context
+2. When you send a message, your agent checks if any skill matches
+3. If matched, the full SKILL.md is loaded and the agent follows it
 4. Skills guide the agent through a structured workflow — they don't replace the agent's judgment, they focus it
