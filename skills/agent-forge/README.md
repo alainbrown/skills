@@ -68,31 +68,37 @@ CLI and API can be added to any agent as cheap add-ons. The agent logic never ch
 | Slack team bot | "Slack bot for our engineering team, codebase questions + on-call" | Chat SDK complexity, Redis state, deployment |
 | Vague request | "Build me an agent." | Interview vs guessing, scope narrowing |
 | Over-scoped request | "Agent that browses web, writes code, manages calendar, sends emails..." | Scope pushback, minimal viable agent |
-| Mid-conversation change | "Discord bot... actually make it Slack" | Cascading invalidation, downstream re-evaluation |
 
 ## Eval results
 
-**Skill win rate: 88% (35/40 criteria comparisons)**
+**Skill win rate: 75% (24/32 criteria comparisons). Baseline wins: 0/32.**
 
-| Eval | Skill Wins | Ties |
-|------|-----------|------|
-| cli-code-reviewer | 7/8 | 1/8 |
-| slack-team-bot | 8/8 | 0/8 |
-| vague-request | 7/8 | 1/8 |
-| over-scoped-request | 8/8 | 0/8 |
-| mid-conversation-change | 5/8 | 3/8 |
+| Eval | Skill Wins | Ties | Baseline Wins |
+|------|-----------|------|---------------|
+| cli-code-reviewer | 4/8 | 4/8 | 0/8 |
+| slack-team-bot | 7/8 | 1/8 | 0/8 |
+| vague-request | 7/8 | 1/8 | 0/8 |
+| over-scoped-request | 6/8 | 2/8 | 0/8 |
 
-Baseline wins: 0/40.
+Rubric criteria: interview quality, scope management, architecture, security hardening, system prompt quality, output completeness, docs-first verification, reference utilization.
 
-### Where the skill adds value
+### Where the skill dominates
 
-- **Scope management** — baseline built everything asked for without pushback; skill narrowed over-scoped requests in 2 exchanges with specific technical reasons
-- **Architecture** — baseline produces scripts; skill produces agent systems with tool-calling loops and decoupled core/interface
-- **Security** — baseline never security-hardens tools; skill always includes path traversal protection, timeouts, size limits
-- **Docs-first verification** — skill checks for documentation tools upfront and uses them to produce correct API signatures; baseline uses hardcoded patterns
-- **Post-scaffold smoke test** — skill runs `tsc --noEmit` and fixes compilation errors; baseline doesn't verify
+- **Interview quality** (4/4 wins) — one-at-a-time questioning, adapted to answers. Baseline dumps 5-6 questions at once.
+- **Scope management** (3/4 wins) — over-scoped requests get immediate pushback with concrete technical reasons (system prompt conflict, tool explosion, model cost). Baseline compromises and builds toward the over-scoped vision.
+- **Docs-first verification** (4/4 wins) — checks for context7 upfront, records availability, subagents use docs for API signatures. Baseline hardcodes SDK versions.
+- **Security hardening** (3/4 wins) — systematic path traversal prevention, execFile, timeouts, size limits on all tools. Baseline includes partial hardening at best.
 
-### Where the baseline holds up
+### Where the baseline narrowed the gap
 
-- Simple CLI agents — both produce working code (different architecture)
-- No mid-conversation changes — cascade logic untestable without changes
+- **Architecture** — baseline now produces multi-module projects with tool registries and structured output, not just scripts. Still lacks decoupled core/interface pattern.
+- **System prompt quality** — for well-specified requests, baseline writes strong domain-specific prompts (CWE-aware code review protocols, behavioral guidelines). Ties on 2/4 evals.
+- **Output completeness** — baseline produces more concrete code (full implementations vs. scaffold descriptions). Ties on 2/4 evals.
+
+### Evolution from prior eval
+
+Prior eval (iteration 1): 88% (35/40). Current eval (iteration 2): 75% (24/32). The drop reflects a stronger baseline LLM, not a weaker skill. Key changes:
+- Baseline architecture improved significantly (was "scripts", now multi-module projects)
+- Baseline system prompts improved for clear use cases
+- Added reference-utilization criterion (4/4 skill wins, confirms the 6-reference structure is working)
+- Removed mid-conversation-change eval (cascade logic untestable in single-prompt simulation)

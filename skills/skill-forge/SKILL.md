@@ -1,12 +1,15 @@
 ---
 name: skill-forge
 description: >
-  Creates publishable agent skills with proper plugin structure, READMEs, and eval-backed quality.
+  Creates and improves agent skills with proper plugin structure, READMEs, and eval-backed quality.
   Handles the full lifecycle: scaffolding the .claude-plugin folder, interviewing for the skill design,
   writing the SKILL.md, running evals with baselines, generating a skill README with findings, and
-  cleaning up. Use this skill whenever the user wants to create a new skill, build a skill plugin,
-  make a skill from scratch, set up a skills repo, or says things like "turn this into a skill",
-  "I want to make a skill for X", "create a plugin", or "package this as a skill".
+  cleaning up. Also re-evaluates and improves existing skills — reconstructs the rubric, runs fresh
+  evals, compares against prior results, and iterates. Use this skill whenever the user wants to
+  create a new skill, build a skill plugin, make a skill from scratch, set up a skills repo, improve
+  an existing skill, re-evaluate a skill, or says things like "turn this into a skill", "I want to
+  make a skill for X", "create a plugin", "package this as a skill", "improve this skill",
+  "re-eval train", "this skill could be better", or "how is X holding up".
 ---
 
 # Skill Forge — Build Publishable Agent Skills
@@ -28,28 +31,64 @@ Persist progress to `.forge-state.json` in the working directory. This file is t
 ## Workflow Overview
 
 ```
-User wants to create a skill
-       ↓
-  ┌──────────────────────┐
-  │ 1. SCAFFOLD          │  Plugin structure + repo README
+User wants to create a skill          User wants to improve a skill
+       ↓                                        ↓
+  ┌──────────────────────┐            ┌──────────────────────┐
+  │ 1. SCAFFOLD          │            │ RE-EVAL: ASSESS      │  Read skill, motivation, prior results
+  └──────┬───────────────┘            └──────┬───────────────┘
+         ↓                                   ↓
+  ┌──────────────────────┐            ┌──────────────────────┐
+  │ 2. DESIGN            │            │ RE-EVAL: RUBRIC      │  Reconstruct + revise eval criteria
+  └──────┬───────────────┘            └──────┬───────────────┘
+         ↓                                   ↓
+  ┌──────────────────────┐                   │
+  │ 3. TEST & ITERATE    │◄─────────────────-┘
   └──────┬───────────────┘
          ↓
   ┌──────────────────────┐
-  │ 2. DESIGN            │  Interview, research, draft SKILL.md
-  └──────┬───────────────┘
-         ↓
-  ┌──────────────────────┐
-  │ 3. TEST & ITERATE    │  Eval loop (test → review → improve)
-  └──────┬───────────────┘
-         ↓
-  ┌──────────────────────┐
-  │ 4. DOCUMENT          │  Generate skill README from findings
+  │ 4. DOCUMENT          │  Generate / update skill README
   └──────┬───────────────┘
          ↓
   ┌──────────────────────┐
   │ 5. CLEAN UP          │  Workspace cleanup + optional commit
   └──────────────────────┘
 ```
+
+---
+
+## Re-evaluating an Existing Skill
+
+When the user wants to improve a skill rather than create one — "improve scaffold", "re-eval train", "this skill could be better" — use this flow instead of Phases 1–2.
+
+### Assess
+
+Read the existing SKILL.md, references, and README. Look for prior eval results in the README (win rates, criteria, known gaps). Ask:
+
+> "What's motivating the re-eval? New learnings from using it, behavior that's off, or just a periodic check?"
+
+The answer determines scope — targeted fix (one criterion) vs. broad re-evaluation (full rubric).
+
+### Reconstruct the rubric
+
+Phase 5 deletes eval artifacts, so prior rubrics won't exist on disk. Reconstruct:
+
+1. Extract criteria and results from the README's eval section (if present)
+2. Draft an updated `evals/rubric.json` — keep criteria that still matter, add new ones based on the user's motivation, drop any that are no longer relevant
+3. Note the prior win rates so you can compare after the new run
+
+Share the updated rubric with the user before proceeding.
+
+### Enter Phase 3
+
+Run evals as normal (Phase 3). After grading, compare against the prior README results:
+
+> "Prior eval: 78% skill wins. This eval: 82%. Improved on [X]. Regressed on [Y]. New criteria [Z] scores well."
+
+If the README has no prior results, treat this as a first eval — no comparison, just baseline.
+
+### Finish
+
+After iteration stabilizes, update the README with fresh results (Phase 4) and clean up (Phase 5).
 
 ---
 
