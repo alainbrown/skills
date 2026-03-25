@@ -343,9 +343,13 @@ Then answer the key question explicitly:
 - **Iterate** — skill wins but has clear gaps to fix, or wins are marginal
 - **Reconsider** — skill doesn't meaningfully outperform the baseline; the LLM already does this well enough
 
-**If the recommendation is "ship" or "reconsider,"** present the results and stop — the user decides what to do next.
+**After presenting results, ask the user how to proceed.** The threshold is a guideline, not a rule — the user may ship at 65% if the gaps are all "baseline caught up," or iterate at 80% if they see a specific weakness.
 
-**If the recommendation is "iterate," don't stop — continue directly into diagnosis and proposed improvements.** The user asked for improvement, so deliver the full cycle: results + diagnosis + proposed edits in one pass. Only pause for user confirmation once, right before applying edits.
+> "Results: Z%. Recommendation: [ship/iterate/reconsider]. I've identified N gaps — want me to diagnose and propose edits, or is this good enough to ship?"
+
+**If they say iterate (or "proceed", "improve it", "keep going"):** continue directly into diagnosis and proposed improvements. Deliver results + diagnosis + proposed edits, then pause for confirmation before applying.
+
+**If they say ship (or "that's fine", "good enough", "stop"):** move to Phase 4 (Document) and Phase 5 (Clean Up).
 
 ### Launch the review viewer
 
