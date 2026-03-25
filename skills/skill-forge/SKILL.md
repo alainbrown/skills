@@ -343,7 +343,9 @@ Then answer the key question explicitly:
 - **Iterate** — skill wins but has clear gaps to fix, or wins are marginal
 - **Reconsider** — skill doesn't meaningfully outperform the baseline; the LLM already does this well enough
 
-Present this to the user. If they want to iterate, identify which criteria the skill lost on and improve the SKILL.md to address those gaps. Rerun.
+**If the recommendation is "ship" or "reconsider,"** present the results and stop — the user decides what to do next.
+
+**If the recommendation is "iterate," don't stop — continue directly into diagnosis and proposed improvements.** The user asked for improvement, so deliver the full cycle: results + diagnosis + proposed edits in one pass. Only pause for user confirmation once, right before applying edits.
 
 ### Launch the review viewer
 
@@ -351,7 +353,7 @@ After grading, launch the review viewer — it shows outputs side-by-side with r
 
 ### Iterate
 
-If the recommendation is "iterate," diagnose the gaps before making changes. Don't just "improve it" — understand *why* the skill underperformed, then make targeted edits.
+When the recommendation is "iterate," flow directly from synthesis into diagnosis. Don't wait for the user to ask — they already told you to improve the skill.
 
 **Step 1: Diagnose.** For each criterion the skill tied or lost on, re-read the with-skill and baseline outputs side by side. Answer:
 - What did the baseline do that matched or beat the skill?
@@ -368,9 +370,11 @@ If the recommendation is "iterate," diagnose the gaps before making changes. Don
 | Structural issue | Agent missed a step because it's buried in a long section | Extract to a reference or restructure the phase |
 | Baseline caught up | LLM now does this well without guidance | Not fixable — consider dropping the criterion or accepting the tie |
 
-**Step 3: Propose.** Draft specific edits — quote the current text, show the proposed replacement, explain why. Present to the user before applying. Group by file (SKILL.md vs. specific references).
+**Step 3: Propose.** Draft specific edits — quote the current text, show the proposed replacement, explain why. Group by file (SKILL.md vs. specific references).
 
-**Step 4: Apply and rerun.** Make the edits, rerun the evals. Compare against both the prior iteration and the original baseline. Repeat until the user is satisfied or the remaining gaps are in the "baseline caught up" category.
+**Step 4: Present the full package.** Show the user everything in one message: results table, diagnosis, categorized gaps, and proposed edits. Ask for confirmation or adjustments before applying.
+
+**Step 5: Apply and rerun.** Make the edits, rerun the evals, compare against both the prior iteration and the original baseline. If the result is still "iterate," repeat the cycle automatically — diagnose, propose, present, apply. Continue until the result is "ship," the remaining gaps are all "baseline caught up," or the user says to stop.
 
 ---
 
