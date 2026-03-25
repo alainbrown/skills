@@ -46,24 +46,29 @@ Guides the agent through a structured 5-phase workflow to produce production-qua
 
 ## Eval results
 
-Tested across 5 scenarios, comparing with-skill vs baseline (no skill):
+**Skill win rate: 62% (13/21 criteria comparisons, excl. structural). Baseline wins: 0/21.**
 
-| Metric | With Skill | Baseline |
-|--------|-----------|----------|
-| **Pass rate** | **100%** (42/42) | **61.1%** |
-| **Avg tokens** | 17,800 | 12,774 |
+| Eval | Skill Wins | Ties | Baseline Wins |
+|------|-----------|------|---------------|
+| login-flow | 4/8 | 4/8 | 0/8 |
+| checkout-no-playwright | 5/8 | 3/8 | 0/8 |
+| conditional-wizard | 4/8 | 4/8 | 0/8 |
 
-### Where the skill adds value
+Rubric criteria: test.step usage, journey design, clarifying questions, auth handling, locator quality, web-first assertions, setup respect, reference structure.
 
-- **`test.step()` usage** — with-skill always uses it; baseline never does (0/5 evals)
-- **Journey design before code** — with-skill presents a reviewable step map every time; baseline jumps to code
-- **Clarifying questions** — with-skill asks about credentials, UI patterns, flow details; baseline assumes silently
-- **storageState for auth** — with-skill recommends Playwright's built-in auth sharing; baseline re-authenticates per test
-- **Page objects when appropriate** — with-skill suggests POM for complex multi-page journeys; baseline uses inline locators
+### Where the skill dominates
 
-### Where the baseline holds up
+- **test.step() usage** (3/3 wins) — with-skill always uses it for every journey phase. Baseline never does — 0/3 evals.
+- **Journey design before code** (3/3 wins) — with-skill presents a reviewable step map with actions, targets, assertions. Baseline jumps straight to code every time.
+- **Clarifying questions** (2-3/3 wins) — with-skill asks about credentials, UI patterns, suite structure before generating. Baseline assumes or asks reactively.
+- **Locator quality** (2/3 wins) — with-skill reads source code to discover actual element structure. Baseline guesses CSS selectors on complex forms.
 
-- Web-first assertions and no hardcoded waits — both do this well
-- Unique test emails — both generate them
-- Package manager awareness — both respect pnpm when told
-- Conditional path separation — both generate per-path tests
+### Where the baseline narrowed the gap
+
+- **Web-first assertions** (3/3 ties) — baseline LLMs know Playwright assertion patterns well now. Both use toBeVisible(), toHaveURL(), no waitForTimeout().
+- **Auth handling** (3/3 ties) — test scenarios didn't stress auth (only guest checkout). Both handle simple cases correctly.
+- **Setup detection** (1/3 ties) — baseline now detects and installs Playwright competently.
+
+### Evolution from prior eval
+
+Prior eval used pass/fail metrics (100% vs 61.1%). Current eval uses rubric-based grading (62% win rate). The skill's core value is in process (design before code, test.step(), structured discovery) rather than output patterns (assertions, locators) that the baseline now handles well.

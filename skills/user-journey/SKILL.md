@@ -193,6 +193,8 @@ Example:
 
 ### Locator strategy
 
+**Always read the source code** for the pages in the journey before choosing locators. Look at the actual component JSX/HTML to see what labels, roles, and test IDs exist. Don't guess from the page description — the real DOM determines what locators work.
+
 Choose locators in this priority order:
 
 1. **Role-based** — `getByRole('button', { name: 'Sign in' })` — resilient and accessible
@@ -242,36 +244,7 @@ Only add edge case tests if the user wants them — don't over-generate.
 
 If a documentation MCP (like Context7) is available, query it for the latest Playwright test API docs before writing code — especially for locator methods, assertion APIs, or configuration options you're less certain about. This takes seconds and prevents generating code with deprecated or renamed APIs.
 
-Write clean, readable Playwright specs following these patterns.
-
-### File structure
-
-```typescript
-import { test, expect } from '@playwright/test';
-
-test.describe('Journey Name', () => {
-  test('should complete the full journey', async ({ page }) => {
-    // Step 1: Starting point
-    await test.step('Navigate to starting page', async () => {
-      await page.goto('/start');
-      await expect(page.getByRole('heading', { name: 'Welcome' })).toBeVisible();
-    });
-
-    // Step 2: First interaction
-    await test.step('Fill in the form', async () => {
-      await page.getByLabel('Email').fill('user@example.com');
-      await page.getByLabel('Password').fill('securepass');
-      await page.getByRole('button', { name: 'Continue' }).click();
-    });
-
-    // Step 3: Verify outcome
-    await test.step('Verify success', async () => {
-      await expect(page).toHaveURL('/dashboard');
-      await expect(page.getByText('Welcome back')).toBeVisible();
-    });
-  });
-});
-```
+Write clean, readable Playwright specs. Read `references/playwright-patterns.md` for the spec file template, Page Object Model pattern, auth setup with storageState, and webServer config.
 
 ### Code principles
 
@@ -285,67 +258,9 @@ test.describe('Journey Name', () => {
 
 - **Comments only for non-obvious setup.** Don't comment every line. Do comment why a particular wait or workaround exists.
 
-### When to use Page Object Model
+- **Page Object Model when warranted.** If the journey involves 3+ pages reused across tests, extract page objects (template in `references/playwright-patterns.md`). Don't create one for something used in only one test.
 
-If the user opted for a full suite structure, or if the journey involves 3+ pages that will be reused across tests, extract page objects:
-
-```typescript
-// pages/login.page.ts
-import { type Page, type Locator } from '@playwright/test';
-
-export class LoginPage {
-  readonly emailInput: Locator;
-  readonly passwordInput: Locator;
-  readonly submitButton: Locator;
-
-  constructor(private page: Page) {
-    this.emailInput = page.getByLabel('Email');
-    this.passwordInput = page.getByLabel('Password');
-    this.submitButton = page.getByRole('button', { name: 'Sign in' });
-  }
-
-  async login(email: string, password: string) {
-    await this.emailInput.fill(email);
-    await this.passwordInput.fill(password);
-    await this.submitButton.click();
-  }
-}
-```
-
-Page objects encapsulate locators and common actions for a page. Keep them focused — one class per page or major component. Don't create a page object for something used in only one test.
-
-### Auth setup (when needed)
-
-```typescript
-// auth.setup.ts
-import { test as setup, expect } from '@playwright/test';
-
-const authFile = 'playwright/.auth/user.json';
-
-setup('authenticate', async ({ page }) => {
-  await page.goto('/login');
-  await page.getByLabel('Email').fill(process.env.TEST_USER_EMAIL!);
-  await page.getByLabel('Password').fill(process.env.TEST_USER_PASSWORD!);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL('/dashboard');
-  await page.context().storageState({ path: authFile });
-});
-```
-
-And in `playwright.config.ts`:
-```typescript
-projects: [
-  { name: 'setup', testMatch: /.*\.setup\.ts/ },
-  {
-    name: 'chromium',
-    use: {
-      ...devices['Desktop Chrome'],
-      storageState: 'playwright/.auth/user.json',
-    },
-    dependencies: ['setup'],
-  },
-],
-```
+- **Shared auth state for 3+ tests.** Use storageState (template in `references/playwright-patterns.md`) when multiple tests need authentication. Inline login is fine for 1-2 tests.
 
 ---
 
@@ -361,15 +276,7 @@ npx playwright test <spec-file> --reporter=list
 
 Use `--reporter=list` for readable console output during development.
 
-If the app isn't running, check if there's a `webServer` config in `playwright.config.ts`. If not, tell the user they need to start their dev server first, or offer to add a `webServer` block:
-
-```typescript
-webServer: {
-  command: 'npm run dev',
-  url: 'http://localhost:3000',
-  reuseExistingServer: !process.env.CI,
-},
-```
+If the app isn't running, check if there's a `webServer` config in `playwright.config.ts`. If not, tell the user they need to start their dev server first, or offer to add a `webServer` block (template in `references/playwright-patterns.md`).
 
 ### Handle failures
 
