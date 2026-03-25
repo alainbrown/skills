@@ -78,27 +78,28 @@ Takes a branch with too many commits (WIP, fixups, "oops forgot a file") and rew
 
 ## Eval results
 
-Tested across 4 iterations with 5 scenarios (messy branch, conventions + co-authors, single commit, mainline branch, auto mode), each compared against a no-skill baseline.
+**Skill win rate: 75% (21/28 criteria comparisons, excl. structural). Baseline wins: 0/28.**
 
-| Metric | With skill | Baseline | Delta |
-|--------|-----------|----------|-------|
-| Pass rate | 100% (37/37) | 71.3% (17/25) | +28.7% |
-| Convention detection | Always | Inconsistent | Skill checks 5 sources every time |
-| Convention choice | Always offered | Never | Baseline silently adopts or ignores |
-| Confirmation prompt | Always | Inconsistent | Baseline sometimes gives raw rebase instructions |
-| Safety checks | Hooks, deps, backup | Partial | Baseline never checks hooks or dependent branches |
+| Eval | Skill Wins | Ties | Baseline Wins |
+|------|-----------|------|---------------|
+| messy-feature-branch | 6/8 | 2/8 | 0/8 |
+| conventions-and-coauthors | 5/8 | 3/8 | 0/8 |
+| mainline-last-n | 5/8 | 3/8 | 0/8 |
+| auto-mode | 5/8 | 3/8 | 0/8 |
 
-### Where the baseline holds up
+Rubric criteria: convention detection, convention choice, safety checks, commit grouping, proposal format, confirmation before rewrite, edge case handling, reference structure.
 
-- Commit grouping quality is comparable — both produce reasonable logical groups
-- Force-push warnings on pushed branches
-- Single-commit detection
+### Where the skill dominates
 
-### Where the skill adds value
+- **Convention detection** (4/4 wins) — systematic 5-source priority check every time. Baseline only checks git history.
+- **Safety checks** (4/4 wins) — backup ref, hook detection, dependent branch check, never auto-pushes. Baseline missed backup refs in 2/4 evals, auto-pushed on mainline.
+- **Proposal format** (4/4 wins) — structured before/after with complete messages and safety check summary. Baseline gives commands or informal summaries.
 
-- Consistent convention detection and user choice
-- Hook and dependent branch awareness (prevents messy failures)
-- Structured before/after proposal format
-- Auto mode for users who just want it done
-- fixup!/squash! commit handling
-- "Last N" scoping support
+### Where the baseline narrowed the gap
+
+- **Commit grouping** (1/4 wins, 3 ties) — baseline now produces reasonable logical groupings. Skill wins only on finer granularity (2 commits vs 1).
+- **Confirmation** (2/4 wins, 2 ties) — baseline confirms before rewriting in most cases.
+
+### Evolution from prior eval
+
+Prior eval used pass/fail metrics (100% vs 71.3%). Current eval uses rubric-based grading (75% win rate). Not directly comparable but both confirm: the skill adds consistent value on convention detection, safety, and structured proposals. The baseline improved on commit grouping and basic confirmation flow.
