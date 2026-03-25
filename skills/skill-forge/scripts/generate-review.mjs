@@ -233,17 +233,17 @@ function generateHtml(runs, skillName, benchmark, rubric, previousFeedback, serv
 <title>Eval Review — ${escapeHtml(skillName)}</title>
 <style>
 :root {
-  --bg: #0d1117; --surface: #161b22; --border: #30363d;
-  --text: #e6edf3; --muted: #7d8590; --accent: #58a6ff;
-  --green: #3fb950; --green-bg: #0d2117; --red: #f85149; --red-bg: #2d1115;
-  --yellow: #f0c000; --yellow-bg: #2d2600;
+  --bg: #f5f5f5; --surface: #ffffff; --border: #e5e7eb;
+  --text: #1a1a1a; --muted: #6b7280; --accent: #2563eb;
+  --green: #16a34a; --green-bg: #f0fdf4; --red: #dc2626; --red-bg: #fef2f2;
+  --yellow: #ca8a04; --yellow-bg: #fefce8;
   --radius: 8px; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   --mono: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
 .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
-.header h1 { font-size: 1.25rem; font-weight: 600; }
+.header h1 { font-size: 1.25rem; font-weight: 700; }
 .header .meta { font-size: 0.8rem; color: var(--muted); }
 .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--surface); padding: 0 2rem; }
 .tab { padding: 0.75rem 1.25rem; font-size: 0.875rem; font-weight: 500; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
@@ -257,12 +257,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .nav button:disabled { opacity: 0.3; cursor: default; }
 .nav .counter { font-size: 0.875rem; color: var(--muted); }
 .main { padding: 1.5rem 2rem; display: flex; flex-direction: column; gap: 1.25rem; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
 .card-header { padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
 .card-body { padding: 1rem; }
 .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
-.badge-skill { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
-.badge-baseline { background: rgba(255, 193, 7, 0.15); color: #f0c000; }
+.badge-skill { background: #eff6ff; color: var(--accent); }
+.badge-baseline { background: #fefce8; color: #a16207; }
 .prompt-text { white-space: pre-wrap; font-size: 0.9rem; line-height: 1.6; color: var(--text); }
 .output-file { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-top: 0.75rem; }
 .output-file-header { padding: 0.5rem 0.75rem; font-size: 0.8rem; color: var(--muted); background: var(--bg); border-bottom: 1px solid var(--border); font-family: var(--mono); }
@@ -274,13 +274,13 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .rubric-grades { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem; }
 .rubric-grade { padding: 0.4rem 0.6rem; border-radius: var(--radius); font-size: 0.8rem; }
 .rubric-grade-label { font-size: 0.7rem; text-transform: uppercase; color: var(--muted); margin-bottom: 0.2rem; }
-.rubric-grade.win { background: var(--green-bg); border: 1px solid rgba(63, 185, 80, 0.3); }
-.rubric-grade.lose { background: var(--red-bg); border: 1px solid rgba(248, 81, 73, 0.3); }
-.rubric-grade.tie { background: var(--yellow-bg); border: 1px solid rgba(240, 192, 0, 0.3); }
+.rubric-grade.win { background: var(--green-bg); border-left: 3px solid var(--green); }
+.rubric-grade.lose { background: var(--red-bg); border-left: 3px solid var(--red); }
+.rubric-grade.tie { background: var(--yellow-bg); border-left: 3px solid var(--yellow); }
 .rubric-evidence { font-size: 0.75rem; color: var(--muted); font-style: italic; margin-top: 0.25rem; }
 .rubric-toggle { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
 .rubric-toggle button { padding: 0.25rem 0.75rem; border-radius: var(--radius); font-size: 0.75rem; cursor: pointer; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
-.rubric-toggle button.selected { border-color: var(--accent); background: rgba(88, 166, 255, 0.1); }
+.rubric-toggle button.selected { border-color: var(--accent); background: #eff6ff; }
 .rubric-toggle button:hover { border-color: var(--accent); }
 .rubric-notes { width: 100%; padding: 0.4rem 0.6rem; margin-top: 0.4rem; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: var(--font); font-size: 0.8rem; resize: none; }
 .rubric-notes:focus { outline: none; border-color: var(--accent); }
@@ -291,9 +291,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .bench-table th, .bench-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
 .bench-table th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
 .recommendation { padding: 1rem; border-radius: var(--radius); font-size: 1rem; font-weight: 600; text-align: center; margin-top: 1rem; }
-.recommendation.ship { background: var(--green-bg); border: 1px solid rgba(63, 185, 80, 0.3); color: var(--green); }
-.recommendation.iterate { background: var(--yellow-bg); border: 1px solid rgba(240, 192, 0, 0.3); color: var(--yellow); }
-.recommendation.reconsider { background: var(--red-bg); border: 1px solid rgba(248, 81, 73, 0.3); color: var(--red); }
+.recommendation.ship { background: var(--green-bg); border: 1px solid #bbf7d0; color: var(--green); }
+.recommendation.iterate { background: var(--yellow-bg); border: 1px solid #fef08a; color: var(--yellow); }
+.recommendation.reconsider { background: var(--red-bg); border: 1px solid #fecaca; color: var(--red); }
 .submit-bar { padding: 1rem 2rem; border-top: 1px solid var(--border); background: var(--surface); text-align: right; }
 .submit-btn { background: var(--accent); color: #fff; border: none; padding: 0.6rem 1.5rem; border-radius: var(--radius); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
 .submit-btn:hover { opacity: 0.9; }
