@@ -17,35 +17,9 @@ You help users create agent skills that are structured, tested, and ready to sha
 
 Persist progress to `.forge-state.json` in the working directory. This file is the durable source of truth — it survives context compression and ensures nothing is lost over the long conversations that skill-forging typically involves.
 
-**Write after every significant change.** After any phase completes, decision is made, or eval iteration finishes, update the state:
+**Write after every significant change.** After any phase completes, decision is made, or eval iteration finishes, update the state. Include: `skillName`, `skillDir`, `phase`, `iteration`, `pluginExists`, `repoReadmeExists`, a `design` object (intent, trigger examples, confirmed status), an `evals` object (test cases, last result, feedback), and a `decisions` object (key choices made, skipped phases). Adapt the schema to the specific skill.
 
-```json
-{
-  "skillName": "user-journey",
-  "skillDir": "skills/user-journey",
-  "phase": "test",
-  "iteration": 2,
-  "pluginExists": true,
-  "repoReadmeExists": true,
-  "design": {
-    "intent": "Generate Playwright E2E test specs for user journeys",
-    "triggerExamples": ["write E2E tests", "test the login flow"],
-    "confirmedByUser": true
-  },
-  "evals": {
-    "testCases": ["login-flow", "ecommerce-checkout", "signup-onboarding"],
-    "lastIterationResult": "iterate",
-    "feedback": "needs negative assertions for conditional flows"
-  },
-  "decisions": {
-    "suiteStructure": "spec-only unless 3+ pages",
-    "locatorStrategy": "role-based first, data-testid fallback",
-    "skippedPhases": []
-  }
-}
-```
-
-**Read before each phase.** Before starting any phase, read `.forge-state.json` to refresh your understanding. This is especially important after long conversations where context compression may have dropped earlier details.
+**Read before each phase.** Before starting any phase, read `.forge-state.json` to refresh your understanding — especially important after context compression.
 
 **Clean up when done.** Delete `.forge-state.json` after the final commit — it's served its purpose.
 
@@ -129,37 +103,7 @@ Each skill gets its own entry in the `plugins` array. If `marketplace.json` alre
 
 Check if a `README.md` exists at the repo root.
 
-**If no README exists**, generate one from this template:
-
-```markdown
-# <repo-name>
-
-<description>
-
-## What are skills?
-
-Skills are markdown instruction files (SKILL.md) that AI coding agents load
-when they recognize a relevant task. Think of them as playbooks — structured
-workflows that give your agent tested expertise instead of improvising from
-scratch.
-
-Skills work with AI coding agents that support them, including Claude Code,
-Gemini CLI, OpenAI Codex, and other agents with skill/plugin support.
-
-## Usage
-
-After installing, just talk to your agent naturally. Skills trigger
-automatically when your request matches what they do. You can also
-invoke a skill directly by name (e.g., `/skill-name`).
-
-## How skills work
-
-1. Each skill's name and description are loaded into your agent's context
-2. When you send a message, your agent checks if any skill matches
-3. If matched, the full SKILL.md is loaded and the agent follows it
-4. Skills guide the agent through a structured workflow — they don't
-   replace its judgment, they focus it
-```
+**If no README exists**, generate one with: repo name, description, what skills are (markdown instruction files for AI coding agents), install instructions, usage examples, and how skills work (loaded into context, matched to requests, guide the agent).
 
 **If a README already exists**, ask:
 
@@ -274,12 +218,50 @@ If the skill being designed generates code (scaffolds projects, writes implement
 - If docs tools are unavailable, flag uncertain patterns with `// TODO: verify` comments instead of guessing
 - The skill should never require MCP to function — it should work well without it and work better with it
 
+### Interactive browser UI pattern
+
+After capturing intent, consider whether the skill would benefit from browser-based interaction. This applies when the skill has structured user input (quizzes, forms, card-based workflows), visual output (diagrams, diffs, dashboards), or interactions that are richer in a browser than the terminal (timers, click targets, drag-and-drop).
+
+**Ask:**
+
+> "Would this skill benefit from browser interaction? For example, timed responses, click-based input, code editing, or visual feedback. If yes, I'll include the interactive runtime."
+
+**If yes:**
+
+1. **Copy the runtime** from `scripts/runtime/` (relative to this SKILL.md) into the new skill's `scripts/` directory. Copy both files:
+   - `interactive-server.mjs` — zero-dependency Node.js server (SSE + stdout relay)
+   - `shell.html` — HTML shell with React 19 + Babel standalone + Tailwind CDN
+
+2. **Generate `references/interactive.md`** for the skill describing:
+   - What content.json looks like for this skill (the data contract)
+   - What React components the agent should generate (describe the UX, not the code)
+   - The subagent batch pattern if the skill has long sessions
+   - How the skill should customize shell.html (replace `{{TITLE}}`, inject components at the `{/* AGENT: components */}` marker, add styles at `/* AGENT: additional styles */`)
+
+3. **Add interactive mode to the skill's flow** — typically as an optional enhancement in the training/interaction phase, with terminal as the default fallback
+
+**How the runtime works:**
+
+The server is content-agnostic. It serves whatever the agent writes and relays whatever the browser sends:
+
+- Agent writes `content.json` → server pushes to browser via SSE
+- Browser renders agent-generated React components (compiled by Babel in-browser)
+- User interacts → browser POSTs to `/results` → server prints to stdout → agent reads
+- Server prints `{"type":"server_ready","port":NNNN}` on startup
+
+The agent generates React components specific to the skill's needs — quiz cards, flashcards, form wizards, diff viewers, anything. The runtime renders them. No pre-built components to maintain.
+
+**The key principle:** Each skill ships its own copy of the runtime. Skills are independently installable — a user may install only one skill. Never reference another skill's files at runtime.
+
 ### Skill anatomy
 
 ```
 skill-name/
 ├── SKILL.md          (required — the instructions)
 ├── README.md         (generated in Phase 4)
+├── scripts/          (optional — runtime files for browser interaction)
+│   ├── interactive-server.mjs
+│   └── shell.html
 └── references/       (optional — docs loaded on demand)
     ├── some-guide.md
     └── another-ref.md
@@ -338,12 +320,40 @@ Come up with 2-4 realistic test prompts — things a real user would actually sa
 }
 ```
 
+### Add interactive test cases (if applicable)
+
+If the skill has browser interaction (check for `scripts/interactive-server.mjs` and `references/interactive.md`), add 1-2 additional test cases where the user explicitly requests browser mode. These test whether the agent correctly sets up the interactive session — tool calls, file writes, generated components — not just conversation quality.
+
+**Add interactive criteria to the rubric** alongside the standard ones:
+
+| Criterion | What it grades |
+|-----------|---------------|
+| Uses bundled runtime | Copies shell.html + launches interactive-server.mjs, not generating a server from scratch |
+| Correct setup sequence | mkdir → cp shell → edit title/CSS/components → write content.json → launch |
+| Runtime hook usage | Generated React components use useContent(), sendResults(), useKeyboard() correctly |
+| Content-data separation | Writes content.json separately, browser updates via SSE — not hardcoded in HTML |
+| Agent communication channel | POST /results → stdout relay is set up for the agent to read |
+| Batch orchestration | State file written and updated between batches (if the skill uses batching) |
+| Component quality | Mode-appropriate UI, valid JSX, keyboard-first, top-level App component |
+
+These criteria are more binary (correct/incorrect) than the standard rubric (win/tie/lose). A wrong server command or missing hook is a bug, not a judgment call. Grade as win if correct, lose if incorrect or missing.
+
+**Interactive eval prompts should explicitly request browser mode.** Example:
+
+> "Quiz me on [topic] in the browser — I want timers and click-to-answer."
+
 ### Run tests
 
 For each test case, spawn two subagents in the same turn:
 
 1. **With-skill run** — provide the skill path, save outputs to `<skill-name>-workspace/iteration-<N>/<eval-name>/with_skill/outputs/`
 2. **Baseline run** — same prompt, no skill, save to `without_skill/outputs/`
+
+**For interactive test cases, use a different prompt template for the eval agents.** Standard evals say "simulate a conversation." Interactive evals need the agent to show the actual tool calls:
+
+> "Read the skill and all referenced files (especially references/interactive.md and scripts/). Simulate the session but SHOW THE ACTUAL TOOL CALLS — Bash commands, file writes, and generated React code. The components must use the runtime hooks (useContent, sendResults, useKeyboard) and have a top-level App component. Show the full setup sequence, a simulated batch completion via stdout, and the state file update."
+
+The baseline agent gets the same user prompt but is NOT told to show tool calls — it does whatever it naturally would (typically generates a single-file HTML app from scratch).
 
 ### Grade against the rubric
 
