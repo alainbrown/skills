@@ -220,38 +220,7 @@ If the skill being designed generates code (scaffolds projects, writes implement
 
 ### Interactive browser UI pattern
 
-After capturing intent, consider whether the skill would benefit from browser-based interaction. This applies when the skill has structured user input (quizzes, forms, card-based workflows), visual output (diagrams, diffs, dashboards), or interactions that are richer in a browser than the terminal (timers, click targets, drag-and-drop).
-
-**Ask:**
-
-> "Would this skill benefit from browser interaction? For example, timed responses, click-based input, code editing, or visual feedback. If yes, I'll include the interactive runtime."
-
-**If yes:**
-
-1. **Copy the runtime** from `scripts/runtime/` (relative to this SKILL.md) into the new skill's `scripts/` directory. Copy both files:
-   - `interactive-server.mjs` — zero-dependency Node.js server (SSE + stdout relay)
-   - `shell.html` — HTML shell with React 19 + Babel standalone + Tailwind CDN
-
-2. **Generate `references/interactive.md`** for the skill describing:
-   - What content.json looks like for this skill (the data contract)
-   - What React components the agent should generate (describe the UX, not the code)
-   - The subagent batch pattern if the skill has long sessions
-   - How the skill should customize shell.html (replace `{{TITLE}}`, inject components at the `{/* AGENT: components */}` marker, add styles at `/* AGENT: additional styles */`)
-
-3. **Add interactive mode to the skill's flow** — typically as an optional enhancement in the training/interaction phase, with terminal as the default fallback
-
-**How the runtime works:**
-
-The server is content-agnostic. It serves whatever the agent writes and relays whatever the browser sends:
-
-- Agent writes `content.json` → server pushes to browser via SSE
-- Browser renders agent-generated React components (compiled by Babel in-browser)
-- User interacts → browser POSTs to `/results` → server prints to stdout → agent reads
-- Server prints `{"type":"server_ready","port":NNNN}` on startup
-
-The agent generates React components specific to the skill's needs — quiz cards, flashcards, form wizards, diff viewers, anything. The runtime renders them. No pre-built components to maintain.
-
-**The key principle:** Each skill ships its own copy of the runtime. Skills are independently installable — a user may install only one skill. Never reference another skill's files at runtime.
+After capturing intent, consider whether the skill would benefit from browser-based interaction (quizzes, forms, visual feedback, timers, drag-and-drop). Ask the user. If yes, read `references/interactive-runtime.md` for the full setup pattern — runtime files to copy, reference docs to generate, and how the server works.
 
 ### Skill anatomy
 
@@ -287,60 +256,15 @@ Draft 3-6 success criteria — concrete, evaluable dimensions. Examples:
 - "Produces connected, runnable output (not isolated snippets)"
 - "Stays concise — no filler or congratulatory language"
 
-Save these to `evals/rubric.json`:
-
-```json
-{
-  "skill_name": "<name>",
-  "criteria": [
-    { "id": 1, "name": "short descriptive name", "description": "what good looks like for this criterion" },
-    { "id": 2, "name": "...", "description": "..." }
-  ]
-}
-```
-
-Share with the user for review before proceeding.
+Save to `evals/rubric.json` (schema in `references/eval-workflow.md`). Share with the user for review before proceeding.
 
 ### Create test cases
 
-Come up with 2-4 realistic test prompts — things a real user would actually say. Include at least one edge case. Share them with the user for review. Save to `evals/evals.json` in the skill directory:
-
-```json
-{
-  "skill_name": "<name>",
-  "evals": [
-    {
-      "id": 1,
-      "name": "descriptive-name",
-      "prompt": "realistic user prompt",
-      "expected_output": "what good output looks like",
-      "files": []
-    }
-  ]
-}
-```
+Come up with 2-4 realistic test prompts — things a real user would actually say. Include at least one edge case. Share them with the user for review. Save to `evals/evals.json` (schema in `references/eval-workflow.md`).
 
 ### Add interactive test cases (if applicable)
 
-If the skill has browser interaction (check for `scripts/interactive-server.mjs` and `references/interactive.md`), add 1-2 additional test cases where the user explicitly requests browser mode. These test whether the agent correctly sets up the interactive session — tool calls, file writes, generated components — not just conversation quality.
-
-**Add interactive criteria to the rubric** alongside the standard ones:
-
-| Criterion | What it grades |
-|-----------|---------------|
-| Uses bundled runtime | Copies shell.html + launches interactive-server.mjs, not generating a server from scratch |
-| Correct setup sequence | mkdir → cp shell → edit title/CSS/components → write content.json → launch |
-| Runtime hook usage | Generated React components use useContent(), sendResults(), useKeyboard() correctly |
-| Content-data separation | Writes content.json separately, browser updates via SSE — not hardcoded in HTML |
-| Agent communication channel | POST /results → stdout relay is set up for the agent to read |
-| Batch orchestration | State file written and updated between batches (if the skill uses batching) |
-| Component quality | Mode-appropriate UI, valid JSX, keyboard-first, top-level App component |
-
-These criteria are more binary (correct/incorrect) than the standard rubric (win/tie/lose). A wrong server command or missing hook is a bug, not a judgment call. Grade as win if correct, lose if incorrect or missing.
-
-**Interactive eval prompts should explicitly request browser mode.** Example:
-
-> "Quiz me on [topic] in the browser — I want timers and click-to-answer."
+If the skill has browser interaction, add 1-2 test cases for browser mode. See `references/interactive-runtime.md` § "Interactive test cases" for the additional rubric criteria and eval prompt templates.
 
 ### Run tests
 
@@ -349,32 +273,11 @@ For each test case, spawn two subagents in the same turn:
 1. **With-skill run** — provide the skill path, save outputs to `<skill-name>-workspace/iteration-<N>/<eval-name>/with_skill/outputs/`
 2. **Baseline run** — same prompt, no skill, save to `without_skill/outputs/`
 
-**For interactive test cases, use a different prompt template for the eval agents.** Standard evals say "simulate a conversation." Interactive evals need the agent to show the actual tool calls:
-
-> "Read the skill and all referenced files (especially references/interactive.md and scripts/). Simulate the session but SHOW THE ACTUAL TOOL CALLS — Bash commands, file writes, and generated React code. The components must use the runtime hooks (useContent, sendResults, useKeyboard) and have a top-level App component. Show the full setup sequence, a simulated batch completion via stdout, and the state file update."
-
-The baseline agent gets the same user prompt but is NOT told to show tool calls — it does whatever it naturally would (typically generates a single-file HTML app from scratch).
+For interactive test cases, see `references/interactive-runtime.md` § "Eval agent prompt template" for the modified prompt.
 
 ### Grade against the rubric
 
-After all runs complete, read every output and grade each one independently against the rubric. For each eval, for each criterion, score both the with-skill and baseline outputs.
-
-Save `grading.json` per eval:
-
-```json
-{
-  "eval_name": "descriptive-name",
-  "criteria": [
-    {
-      "name": "criterion name",
-      "with_skill": { "score": "win|tie|lose", "evidence": "brief explanation" },
-      "baseline": { "score": "win|tie|lose", "evidence": "brief explanation" }
-    }
-  ]
-}
-```
-
-A "win" means that variant handled this criterion well. A "lose" means it didn't. A "tie" means both were comparable.
+After all runs complete, read every output and grade each one independently against the rubric. For each eval, for each criterion, score both the with-skill and baseline outputs. Save `grading.json` per eval (schema in `references/eval-workflow.md`).
 
 ### Synthesize results
 
@@ -398,37 +301,7 @@ Present this to the user. If they want to iterate, identify which criteria the s
 
 ### Launch the review viewer
 
-After grading, always launch the interactive review server. It shows outputs side-by-side with rubric grades and lets the user agree/disagree per criterion with inline notes.
-
-```bash
-node <scripts>/generate-review.mjs \
-  <workspace>/iteration-N \
-  --skill-name "<name>" \
-  --rubric <evals>/rubric.json \
-  --benchmark <workspace>/iteration-N/benchmark.json
-```
-
-This starts a local server (default port 3117, auto-increments if taken) and opens the browser. The review page shows:
-- The eval prompt
-- With-skill and baseline outputs
-- Each rubric criterion with the agent's grade (win/tie/lose) and evidence
-- Agree/disagree toggles and notes fields per criterion
-- A general feedback textarea
-
-Run this as a background task so you can continue the conversation. Tell the user the URL and ask them to review. When they click "Submit All Reviews," feedback saves directly to `feedback.json` via the server. Kill the server when the user is done.
-
-If the server fails to start (headless environment, port issues), fall back to static mode:
-```bash
-node <scripts>/generate-review.mjs \
-  <workspace>/iteration-N \
-  --skill-name "<name>" \
-  --rubric <evals>/rubric.json \
-  --output <workspace>/iteration-N/review.html
-```
-
-For iteration 2+, add `--previous-workspace <workspace>/iteration-<N-1>`.
-
-**Finding the scripts:** Both scripts are in the `scripts/` directory next to this SKILL.md. Use the same base path you loaded this skill from. No Python or external dependencies required — just Node.js.
+After grading, launch the review viewer — it shows outputs side-by-side with rubric grades and lets the user agree/disagree per criterion. See `references/eval-workflow.md` § "Review Viewer" for CLI invocation, static fallback, and iteration comparison flags.
 
 ### Iterate
 
