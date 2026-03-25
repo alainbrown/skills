@@ -213,6 +213,16 @@ If the journey requires authentication:
 
 Present the step map to the user for review before generating code.
 
+### Test data strategy
+
+Before generating, ask how the journey's preconditions are satisfied:
+
+- **Does the journey need a test user?** How is it created — seeded database, API call in a `beforeAll`, or signup as part of the test? If seeded, what are the credentials?
+- **Does it need specific data state?** Items in a cart, an existing order, admin permissions. Ask whether this is seeded or must be set up in the test.
+- **Cleanup:** Does the test create data that needs cleanup? (e.g., a new user on every run would fill the database). If so, add a teardown step or use unique identifiers per run.
+
+Don't assume test data exists. The baseline LLM always hardcodes `test@example.com` / `password123` and hopes it works. Ask, then encode the real strategy into the test's setup.
+
 ### Negative assertions for conditional flows
 
 When a journey has branching paths (e.g., different form steps based on a selection), include negative assertions that verify the *wrong* content doesn't appear. For example, if the user selects "Auto insurance" and sees vehicle fields, also assert that property fields and health fields are *not* visible. This catches bugs where the wrong branch renders.
