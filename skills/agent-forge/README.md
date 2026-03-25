@@ -62,33 +62,37 @@ CLI and API can be added to any agent as cheap add-ons. The agent logic never ch
 
 ## Test scenarios
 
-| Scenario | Prompt | Key decisions |
+| Scenario | Prompt | What it tests |
 |----------|--------|---------------|
-| CLI code reviewer | "Build an agent that reviews my code for bugs and security issues" | CLI, readFile + searchCode, Anthropic, ephemeral, in-memory, no deployment |
-| Slack support bot | "Build a Slack bot for our engineering team that answers codebase questions" | Slack + CLI add-on, readFile + searchCode + listDir, Redis, Vercel |
-| Web research agent | "I need a web-based research assistant embedded in our Next.js app" | Web chat + CLI add-on, webSearch + fetchPage, ephemeral, in-memory |
+| CLI code reviewer | "Build a CLI agent that reviews code for bugs and security issues" | Happy path, full 7-stage flow, security-hardened tools |
+| Slack team bot | "Slack bot for our engineering team, codebase questions + on-call" | Chat SDK complexity, Redis state, deployment |
+| Vague request | "Build me an agent." | Interview vs guessing, scope narrowing |
+| Over-scoped request | "Agent that browses web, writes code, manages calendar, sends emails..." | Scope pushback, minimal viable agent |
+| Mid-conversation change | "Discord bot... actually make it Slack" | Cascading invalidation, downstream re-evaluation |
 
 ## Eval results
 
-Tested against baseline (LLM without the skill) across 3 scenarios, 6 criteria each:
+**Skill win rate: 88% (35/40 criteria comparisons)**
 
-| Metric | Result |
-|--------|--------|
-| Skill wins | 8/18 (44%) |
-| Baseline wins | 0/18 (0%) |
-| Ties | 10/18 (56%) |
+| Eval | Skill Wins | Ties |
+|------|-----------|------|
+| cli-code-reviewer | 7/8 | 1/8 |
+| slack-team-bot | 8/8 | 0/8 |
+| vague-request | 7/8 | 1/8 |
+| over-scoped-request | 8/8 | 0/8 |
+| mid-conversation-change | 5/8 | 3/8 |
 
-**Where the skill adds value:**
-- Structured decision process (wins all 3 evals) — systematic stages vs monolithic dump
-- Appropriate tools and minimal dependencies (wins 2/3) — prevents over-engineering (baseline added full RAG pipelines and paid services for simple use cases)
+Baseline wins: 0/40.
 
-**Where the baseline holds up:**
-- System prompt quality, interface choice, and project structure are ties — the LLM already does these well
+### Where the skill adds value
 
-The skill never produces worse output than the baseline.
+- **Scope management** — baseline built everything asked for without pushback; skill narrowed over-scoped requests in 2 exchanges with specific technical reasons
+- **Architecture** — baseline produces scripts; skill produces agent systems with tool-calling loops and decoupled core/interface
+- **Security** — baseline never security-hardens tools; skill always includes path traversal protection, timeouts, size limits
+- **Docs-first verification** — skill checks for documentation tools upfront and uses them to produce correct API signatures; baseline uses hardcoded patterns
+- **Post-scaffold smoke test** — skill runs `tsc --noEmit` and fixes compilation errors; baseline doesn't verify
 
-## Future work
+### Where the baseline holds up
 
-- **Deeper eval cases** — vague requests, over-scoped requests, mid-conversation changes, scope boundary testing
-- **Generated agent smoke tests** — `npm run test` that verifies the scaffolded agent can respond to a test prompt
-- **Real usage feedback** — refine the skill based on where actual users get stuck
+- Simple CLI agents — both produce working code (different architecture)
+- No mid-conversation changes — cascade logic untestable without changes

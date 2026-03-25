@@ -71,11 +71,14 @@ Two phases: **Design** (interview + decisions), then **Scaffold** (generate the 
 
 ### Before starting
 
-Check if documentation tools (context7 or similar) are available in the current session. If they are, great — scaffolded code will use verified, current API signatures. If not, let the user know:
+Check if documentation tools (context7 or similar) are available in the current session. Record availability in `agent-forge.json` under `docsTools: true|false`. This determines how subagents handle API signatures during scaffolding:
 
-> "I can build your agent without documentation tools, but the generated code may need minor adjustments for the latest library versions. I'll mark anything I'm uncertain about with `// TODO: verify` comments. For the most accurate output, you can add context7 (`claude mcp add context7 -- npx -y @upstash/context7-mcp@latest`) — but it's optional."
+- **Docs available (default path):** Subagents look up current API signatures from documentation *before* writing code. No TODOs, no guessing. This produces correct, runnable code on the first try.
+- **Docs unavailable (fallback path):** Subagents use training knowledge for API signatures and flag patterns known to change frequently with `// TODO: verify` comments. Let the user know once:
 
-Say this once at the start, then move on. Don't repeat or gate on it.
+> "I don't have documentation tools available, so some API patterns may be outdated. I'll flag uncertain spots with `// TODO: verify`. For more accurate output, you can add context7 (`claude mcp add context7 -- npx -y @upstash/context7-mcp@latest`) — but it's optional."
+
+Say this once, then move on. Don't repeat or gate on it.
 
 ---
 
@@ -183,29 +186,41 @@ Read `agent-forge.json` to load finalized decisions. Generate the complete proje
 
 Scaffold via three subagents. Each receives `agent-forge.json` (all decisions) plus only the reference files it needs. No interview conversation in context — just structured decisions and templates. This prevents hallucinations from stale conversational context.
 
-**API verification:** Subagents should verify current API signatures before writing code. If documentation tools (context7, web fetch) are available, use them. If not, use training knowledge but flag patterns known to change frequently (see "Known fragile patterns" callouts in the reference files) with a `// TODO: verify` comment so the user can check.
+**API verification — docs-first:** Check `docsTools` in `agent-forge.json`. If `true`, subagents must look up current API signatures from documentation *before* writing any import, constructor, or method call that appears in the "Known fragile patterns" sections of the reference files. Look up first, then write — never guess when docs are available. If `docsTools` is `false`, use training knowledge and flag fragile patterns with `// TODO: verify` comments.
 
 **Subagent 1 — Agent Core + Tools** (run first, others depend on the file structure it creates)
 
 Context: `agent-forge.json` + `references/tool-templates.md` + `references/project-structures.md` + `references/component-library.md`
 
-Instruction: Create the project directory, `agent.ts`, all tool files, `mcp.ts` (if needed), `tools/index.ts`, and `tsconfig.json`. The system prompt from `agent-forge.json` goes verbatim in `instructions`. Use the tool shapes and security requirements from `tool-templates.md`. Use the Agent Loop section in `component-library.md` to identify the correct agent class and package. Verify current API signatures via documentation tools if available. If not available, check "Known fragile patterns" in the reference and flag uncertain patterns with `// TODO: verify`.
+Instruction: Create the project directory, `agent.ts`, all tool files, `mcp.ts` (if needed), `tools/index.ts`, and `tsconfig.json`. The system prompt from `agent-forge.json` goes verbatim in `instructions`. Use the tool shapes and security requirements from `tool-templates.md`. Use the Agent Loop section in `component-library.md` to identify the correct agent class and package. If `docsTools` is true, look up current AI SDK agent class, tool(), and MCP client signatures from documentation before writing code. If false, flag "Known fragile patterns" from the reference with `// TODO: verify`.
 
 **Subagent 2 — Interface Layer** (after subagent 1 completes)
 
 Context: `agent-forge.json` + `references/interface-templates.md` + `references/project-structures.md`
 
-Instruction: Generate all chosen interfaces (primary + add-ons). Every interface imports the agent core created by subagent 1. The reference describes structural patterns and responsibilities — verify exact imports and method names via documentation tools if available. Interface APIs (useChat, Chat SDK, AI Elements) are the most fragile part of the stack. If docs are unavailable, flag uncertain patterns with `// TODO: verify` per the "Known fragile patterns" section.
+Instruction: Generate all chosen interfaces (primary + add-ons). Every interface imports the agent core created by subagent 1. Interface APIs (useChat, Chat SDK, AI Elements) are the most fragile part of the stack. If `docsTools` is true, look up current signatures for every import and API call in the interface layer from documentation before writing — this is where outdated code is most likely. If false, flag all "Known fragile patterns" from the reference with `// TODO: verify`.
 
 **Subagent 3 — Package, Deploy, README** (after subagent 1 completes, can run in parallel with subagent 2)
 
 Context: `agent-forge.json` + `references/component-library.md` + `references/project-structures.md`
 
-Instruction: Generate `package.json` with only the needed deps and scripts. Verify current package versions via documentation tools if available — otherwise use `"latest"` for frequently-updated packages and add a `// TODO: pin versions` comment. Generate deployment config if Stage 7 was completed. Generate README using `agent-forge.json` context fields (summary, intent, audience, style) to set the right tone. Include: what the agent does, prerequisites, setup, env vars table, available interfaces, how to extend, deployment instructions.
+Instruction: Generate `package.json` with only the needed deps and scripts. If `docsTools` is true, look up current package versions from documentation or npm. If false, use `"latest"` for frequently-updated packages and add a `// TODO: pin versions` comment. Generate deployment config if Stage 7 was completed. Generate README using `agent-forge.json` context fields (summary, intent, audience, style) to set the right tone. Include: what the agent does, prerequisites, setup, env vars table, available interfaces, how to extend, deployment instructions.
 
 ### Post-Subagent Steps (main conversation)
 
-**Install & Verify** — Run `npm install` in the generated project. Fix any compilation errors. For web chat agents, run `npx ai-elements` to install Message, Conversation, PromptInput components.
+**Install** — Run `npm install` in the generated project. For web chat agents, also run `npx ai-elements` to install Message, Conversation, PromptInput components.
+
+**Smoke test** — Run `npx tsc --noEmit` to verify the generated code compiles. If there are errors:
+1. Read the error output — most are wrong imports or outdated API signatures
+2. Fix each error (look up the correct API if docs tools are available)
+3. Re-run `npx tsc --noEmit` until clean
+4. If errors persist after 2 fix attempts, show the remaining errors to the user and ask for guidance
+
+Don't skip the smoke test. A project that doesn't compile isn't a working agent.
+
+**TODO audit (fallback path only)** — If `docsTools` was false, grep for `// TODO:` in the generated code. Report the count and locations:
+
+> "The project compiles but has N spots flagged for verification: [list files + line descriptions]. These are API patterns that may have changed since my training. Worth a quick check."
 
 **Summary** — Show file tree, key files, how to run each interface. Clean up `agent-forge.json`.
 
