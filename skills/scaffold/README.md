@@ -40,3 +40,29 @@ Helps you pick technologies for each layer of your stack (frontend, backend, dat
 - User changes a decision after confirming (cascading invalidation with rationale-based dependency checks)
 - User cancels a revision mid-change (restores previous decision)
 - No Docker available (falls back to native setup without prescribing a mechanism)
+
+## Eval results
+
+**Skill win rate: 63% (15/24 total), ~88% on testable criteria. Baseline wins: 0/24.**
+
+| Eval | Skill Wins | Ties | Baseline Wins |
+|------|-----------|------|---------------|
+| saas-from-scratch | 4/8 | 4/8 | 0/8 |
+| mid-flow-change | 5/8 | 3/8 | 0/8 |
+| existing-project | 6/8 | 2/8 | 0/8 |
+
+Rubric criteria: opinionated recommendations, decision table UX, cascading invalidation, connected boilerplate, Docker Compose setup, no .env files, existing project detection, reference structure.
+
+Note: 5 of 9 ties are from criteria not testable in a given eval (cascade only applies to mid-flow, existing-project only to existing-project eval). Testable win rates: saas 80%, mid-flow 100%, existing-project 86%.
+
+### Where the skill dominates
+
+- **Decision table UX** (3/3 wins) — structured table with status indicators and drill-by-number. Baseline uses conversational Q&A.
+- **No .env files** (2/2 testable wins) — local env in Docker Compose, production on platform. Baseline creates .env.local or .env.example every time.
+- **Docker Compose** (2/2 testable wins) — app + infra services with healthchecks, named volumes, env inline. Baseline either omits or provides minimal compose.
+- **Cascading invalidation** (1/1 testable win) — formally tracks rationale dependencies, resets affected stages, walks through re-decision. Baseline does ad-hoc change analysis.
+- **Existing project detection** (1/1 testable win) — explicitly detects package.json, skips bootstrap, scopes the table to relevant categories.
+
+### Where the baseline holds up
+
+- **Connected boilerplate** (1/3 tie) — for well-specified SaaS projects, baseline produces comparable connected code (tRPC, org-scoped middleware, plan gating).
