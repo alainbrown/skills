@@ -46,29 +46,30 @@ Guides the agent through a structured 5-phase workflow to produce production-qua
 
 ## Eval results
 
-**Skill win rate: 62% (13/21 criteria comparisons, excl. structural). Baseline wins: 0/21.**
+**Skill win rate: 75% (18/24 criteria comparisons). Baseline wins: 0/24.**
 
 | Eval | Skill Wins | Ties | Baseline Wins |
 |------|-----------|------|---------------|
-| login-flow | 4/8 | 4/8 | 0/8 |
-| checkout-no-playwright | 5/8 | 3/8 | 0/8 |
-| conditional-wizard | 4/8 | 4/8 | 0/8 |
+| login-with-auth | 7/8 | 1/8 | 0/8 |
+| checkout-seeded-data | 6/8 | 2/8 | 0/8 |
+| conditional-wizard | 5/8 | 3/8 | 0/8 |
 
-Rubric criteria: test.step usage, journey design, clarifying questions, auth handling, locator quality, web-first assertions, setup respect, reference structure.
+Rubric criteria: test.step usage, journey design, clarifying questions, test data strategy, locator quality, web-first assertions, setup respect, reference structure.
 
 ### Where the skill dominates
 
-- **test.step() usage** (3/3 wins) — with-skill always uses it for every journey phase. Baseline never does — 0/3 evals.
-- **Journey design before code** (3/3 wins) — with-skill presents a reviewable step map with actions, targets, assertions. Baseline jumps straight to code every time.
-- **Clarifying questions** (2-3/3 wins) — with-skill asks about credentials, UI patterns, suite structure before generating. Baseline assumes or asks reactively.
-- **Locator quality** (2/3 wins) — with-skill reads source code to discover actual element structure. Baseline guesses CSS selectors on complex forms.
+- **test.step() usage** (3/3 wins) — with-skill always uses it. Baseline never does.
+- **Journey design before code** (3/3 wins) — reviewable step map with actions, targets, assertions every time. Baseline jumps to code.
+- **Test data strategy** (2/3 wins) — asks about test user creation, seed endpoints, session linkage, and cleanup. Baseline hardcodes credentials or assumes wrong association mechanism.
+- **Clarifying questions** (3/3 wins) — structured discovery including auth, data, scope, and suite structure. Baseline asks reactively or assumes.
+- **Locator quality** (3/3 wins) — reads actual source code before choosing locators. Baseline guesses CSS selectors on complex forms.
 
-### Where the baseline narrowed the gap
+### Where the baseline holds up
 
-- **Web-first assertions** (3/3 ties) — baseline LLMs know Playwright assertion patterns well now. Both use toBeVisible(), toHaveURL(), no waitForTimeout().
-- **Auth handling** (3/3 ties) — test scenarios didn't stress auth (only guest checkout). Both handle simple cases correctly.
-- **Setup detection** (1/3 ties) — baseline now detects and installs Playwright competently.
+- **Web-first assertions** (3/3 ties) — baseline knows Playwright assertion patterns well. Both use toBeVisible(), toHaveURL(), no waitForTimeout().
 
-### Evolution from prior eval
+### Evolution
 
-Prior eval used pass/fail metrics (100% vs 61.1%). Current eval uses rubric-based grading (62% win rate). The skill's core value is in process (design before code, test.step(), structured discovery) rather than output patterns (assertions, locators) that the baseline now handles well.
+- Prior eval (pass/fail): 100% vs 61.1%
+- Iteration 1 (rubric): 54% — baseline caught up on fundamentals, skill's process value not stressed enough by evals
+- Iteration 2 (rubric): 75% — added test data strategy instruction, redesigned evals to stress auth and seeding, extracted code templates to reference
