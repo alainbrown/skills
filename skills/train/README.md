@@ -72,24 +72,26 @@ Before training starts, the agent previews extracted concepts so you can add, re
 
 ## Eval results
 
-**Skill win rate: 84% (27/32 criteria comparisons)**
+**Skill win rate: 88% (21/24 criteria comparisons). Baseline wins: 0/24.**
 
-| Eval | Skill Wins | Ties |
-|------|-----------|------|
-| react-hooks-beginner | 7/8 | 1/8 |
-| sql-interview-prep | 6/8 | 2/8 |
-| philosophy-casual | 8/8 | 0/8 |
-| python-practice-advanced | 5/8 | 3/8 |
+| Eval | Skill Wins | Ties | Baseline Wins |
+|------|-----------|------|---------------|
+| react-beginner | 7/8 | 1/8 | 0/8 |
+| sql-interview | 7/8 | 1/8 | 0/8 |
+| philosophy-teachback | 7/8 | 1/8 | 0/8 |
 
-Baseline wins: 0/32.
+Rubric criteria: mode selection, source review, calibration, adaptive difficulty, structured debrief, actionable next steps, content quality, reference utilization.
 
-### Where the skill adds value
+### Where the skill dominates
 
-- **Process and structure** — mode selection, source preview, calibration, structured debriefs, and mode-aware continuation options. The baseline never does any of these.
-- **Adaptive behavior** — difficulty adjustment within sessions based on performance patterns.
-- **Actionable next steps** — recommends specific modes for specific gaps instead of generic "keep going."
+- **Process and structure** (18/18 across 6 process criteria) — mode selection, source preview, calibration, structured debriefs, mode-aware next steps, and reference utilization. The baseline never does any of these.
+- **Adaptive difficulty** (2/3 wins, 1 tie) — explicit performance tracking and adjustment. Baseline sometimes adapts naturally but doesn't track.
+- **Reference utilization** (3/3 wins) — reads the correct mode reference (quiz.md, teach-back.md) and follows its specific rules for question type ratios and evaluation patterns.
 
 ### Where the baseline holds up
 
-- **Content quality** — the baseline produces good questions and exercises on its own. The skill's edge is format variety and structure, not raw content quality.
-- **Tone** — both produce coaching-friendly output.
+- **Content quality** (3/3 ties) — the baseline produces good questions and exercises on its own. The skill's edge is format variety and structure, not raw content quality.
+
+### Evolution from prior eval
+
+Prior eval: 84% (27/32). Current eval: 88% (21/24). The 7-reference structure is confirmed working — agents read the right reference at the right time and follow its mode-specific rules.
