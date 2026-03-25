@@ -68,36 +68,33 @@ Acts as an ML architect — inspects your codebase, asks deep questions about th
 
 ## Eval results
 
-### First-response evals
+**Skill win rate: 79% (19/24 criteria comparisons). Baseline wins: 0/24.**
 
-Tested across 4 scenarios with 6 rubric criteria (codebase-awareness, problem-definition-depth, structured-plan, recommendation-quality, state-management, expert-tone). Each scenario compared skill's first response vs. baseline (no skill).
+| Eval | Skill Wins | Ties | Baseline Wins |
+|------|-----------|------|---------------|
+| finetune-classifier | 6/8 | 2/8 | 0/8 |
+| quantize-7b | 7/8 | 1/8 | 0/8 |
+| vague-request | 6/8 | 2/8 | 0/8 |
 
-| Metric | Result |
-|--------|--------|
-| Skill wins | 14/24 (58%) |
-| Baseline wins | 0/24 (0%) |
-| Ties | 10/24 (42%) |
-| Skill win-or-tie | 100% |
+Rubric criteria: codebase awareness, problem definition depth, structured plan, recommendation quality, state management, cascade correctness, expert tone, reference utilization.
 
-**Where the skill adds clear value:** Problem definition depth (4/4 wins — always asks before assuming), state management (4/4 wins), expert tone (4/4 wins), codebase awareness (3/4 wins). **Where the baseline holds up:** Recommendation quality ties across all 4 evals — the baseline provides concrete code faster, the skill provides deeper analytical framing.
+### Where the skill dominates
 
-### Multi-turn eval (full session through output generation)
+- **Codebase awareness** (3/3 wins) — scans data files, notebooks, configs, dependencies. Grounds questions in findings.
+- **Problem definition depth** (3/3 wins) — classifies problem clarity, front-loads analysis for well-constrained problems, doesn't assume on vague requests.
+- **Structured plan** (3/3 wins) — section activation from 12-section catalog with rationale. Baseline goes straight to code.
+- **State management** (3/3 wins) — persists decisions, rationale, and rejected alternatives. Baseline has none.
+- **Expert tone** (3/3 wins) — no tutorials, no filler, recommendation-first with reasoning for experts to verify.
+- **Reference utilization** (3/3 wins) — reads sections.md for activation patterns, outputs.md for output structure at the right phases.
 
-A full design session for the fine-tune text classifier scenario — 10+ turns from codebase scan through pipeline generation, including a mid-session infrastructure change (CPU/Kubernetes to Jetson Orin Nano) that triggers cascading invalidation. Graded on 5 criteria.
+### Where the baseline holds up
 
-| Criterion | Skill | Baseline |
-|-----------|-------|----------|
-| State consistency | **win** | lose |
-| Section coherence | **win** | tie |
-| Cascade correctness | **win** | tie |
-| Output completeness | **win** | lose |
-| Output quality | **win** | tie |
+- **Recommendation quality** (2/3 ties) — baseline produces technically sound recommendations for clear problems. The skill won on quantize-7b by comparing methods more rigorously.
+- **Cascade correctness** (3/3 ties) — not tested in these evals (no upstream decision changes).
 
-Key findings:
-- **Cascading invalidation works.** Formal transitive walk evaluated all 7 completed sections, classified each as "still valid" or "needs revision" with per-section reasoning. The baseline handled the change practically but without structured re-evaluation.
-- **Probe notebook is a real differentiator.** The skill produced a 7-probe feasibility notebook (data profiling, tokenization analysis, VRAM estimation, ONNX export test, TF-IDF baseline, model loading, library compat). The baseline skipped this entirely.
-- **Design spec captures what the baseline doesn't.** Rejected alternatives per section, cascade before/after analysis, and per-section rationale — the reasoning trail for "why did we choose this?" six months later.
-- **Cost: the skill took 2x longer** (14 min / 57 tool calls vs. 7.5 min / 30). The structured workflow adds overhead that's worth it for production pipelines.
+### Evolution from prior eval
+
+Prior first-response eval: 58% (14/24). Current multi-turn eval: 79% (19/24). The multi-turn format better captures the skill's structured workflow — section walkthroughs, state management, and output generation couldn't be measured in first-response-only evals.
 
 ## Design decisions
 
