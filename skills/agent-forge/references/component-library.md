@@ -2,8 +2,6 @@
 
 Building blocks for composing agents. This file describes **what exists and when to use it** — not exact versions or API signatures.
 
-**Documentation tools (context7, web fetch) are optional.** If available, use them to verify current package versions and API signatures before scaffolding. If not available, the decision logic in this file (which package for which use case) is stable — only the exact versions and constructor signatures need caution. Use `"latest"` for frequently-updated packages and flag with `// TODO: pin versions`.
-
 ## Agent Loop
 
 | Option | Package | When to use |
@@ -27,24 +25,83 @@ Look up: Current class names and constructor signatures. These have changed mult
 
 ## Tools
 
-| Category | Strategy | When to use |
-|----------|----------|-------------|
-| File operations | Native `tool()` — hardened (see tool-templates.md) | Code agents, document processors |
-| Shell/command execution | Native `tool()` — hardened, or `just-bash` for virtual shell | Dev tools, automation agents |
-| Web search | Native `tool()` — flexible, adapter pattern | Research agents, Q&A |
-| Code execution (sandboxed) | `just-bash` (lightweight), `e2b` (managed), or `@vercel/sandbox` (Vercel) | Untrusted code, data analysis |
-| Browser automation | MCP (`@playwright/mcp`) | Web scraping, testing agents |
-| GitHub/GitLab | MCP (`@modelcontextprotocol/server-github`) | Code review, PR agents |
-| Database queries | Native `tool()` — flexible, varies by DB | Data agents, admin tools |
-| API integrations | Native `tool()` — flexible, varies by API | Domain-specific agents |
-| Domain-specific MCP | `@ai-sdk/mcp` + server URL | Exotic integrations, third-party tools |
+Every agent gets three layers of tools:
 
-### Tool strategy guide
+### Layer 1: bash-tool (always included)
 
-- **Native hardened** — use for file I/O and shell. Security-sensitive, well-defined shapes. Adapt from `references/tool-templates.md` security requirements.
-- **Native flexible** — use for web search, DB queries, API calls. Provider varies, use adapter pattern from `references/tool-templates.md`.
-- **Package-based** — use for sandboxing (`just-bash`, `e2b`, `@vercel/sandbox`). Install the package, write a thin `tool()` wrapper. Look up current API before writing.
-- **MCP** — use for rich integrations where the server provides significant value. Browser automation, GitHub, database introspection.
+`bash-tool` wraps `just-bash` and provides AI SDK-compatible tools via `createBashTool()`. Covers:
+- Shell execution (grep, sed, awk, jq, curl, etc.)
+- File I/O (cat, read, write, mkdir, ls)
+- Text processing and data manipulation
+- Sandboxed — in-memory virtual filesystem, no real system access
+
+One import replaces dozens of hand-written tools. Always include this.
+
+### Layer 2: MCP servers (configured per agent)
+
+Rich integrations from the MCP ecosystem. Recommend based on the agent's purpose.
+
+#### Cloud provider MCP servers (official)
+
+| Provider | Package / Command | Official | What it provides |
+|----------|-------------------|----------|-----------------|
+| AWS | `npx -y powertools-for-aws-mcp` | Yes (AWS Labs) | EC2, S3, IAM, CloudWatch, Lambda, RDS, and other AWS services |
+| GCP | `gcloud-mcp` | Yes (Google) | GCP resources via gcloud CLI; managed servers for BigQuery, Spanner, Cloud SQL, AlloyDB, Firestore, GKE |
+| Azure | `npx -y @azure/mcp@latest server start` | Yes (Microsoft) | Azure services — deploy, manage, configure resources |
+| Vercel | `mcp-handler` | Yes (Vercel) | Vercel deployments and project management |
+
+#### General-purpose MCP servers
+
+| Server | Package | Official | What it provides |
+|--------|---------|----------|-----------------|
+| GitHub | `@modelcontextprotocol/server-github` | Yes (GitHub) | Repos, PRs, issues, file operations, search |
+| Playwright | `@playwright/mcp` | Yes (Microsoft) | Browser automation, web scraping, testing |
+| Filesystem | `@modelcontextprotocol/server-filesystem` | Yes (Anthropic) | Secure file operations with directory access control |
+| Fetch | `@modelcontextprotocol/server-fetch` | Yes (Anthropic) | HTTP fetch, HTML-to-markdown conversion |
+
+#### MCP recommendation by agent type
+
+| Agent purpose | Recommended MCP servers |
+|---------------|------------------------|
+| Cloud infrastructure (AWS) | AWS MCP, Filesystem |
+| Cloud infrastructure (GCP) | GCP MCP, Filesystem |
+| Cloud infrastructure (Azure) | Azure MCP, Filesystem |
+| Cloud infrastructure (multi-cloud) | AWS + GCP + Azure MCPs (user configures the ones they use) |
+| Code review / dev tools | GitHub MCP, Filesystem |
+| Web scraping / testing | Playwright MCP, Fetch MCP |
+| Deployment / hosting | Vercel MCP (if on Vercel) |
+| Research / Q&A | Fetch MCP |
+| General-purpose assistant | Filesystem MCP, Fetch MCP |
+
+All MCP servers use stdio transport for local execution. Connect via `@ai-sdk/mcp` client — see `components/mcp.ts` for the connection pattern.
+
+### Layer 3: Bespoke native tools (rare)
+
+Only for domain-specific operations that truly can't be done via bash or MCP. Examples:
+- Custom safety-tier enforcement logic
+- Proprietary API wrappers with credential management
+- Cost projection algorithms using internal data
+- Multi-step workflows that need structured confirmation flows
+
+Written following `components/tools/integration-tool-pattern.ts`. When possible, prefer MCP or bash-tool over writing bespoke tools.
+
+### Tool decision flowchart
+
+```
+Can this be done with a bash command?
+  → Yes → bash-tool handles it (already included)
+  → No ↓
+
+Is there an MCP server for this integration?
+  → Yes → Add the MCP server to the config
+  → No ↓
+
+Is this a standard HTTP API call?
+  → Yes → bash-tool can do it via curl, OR use Fetch MCP
+  → No ↓
+
+Write a bespoke native tool following integration-tool-pattern.ts
+```
 
 ## Models
 
@@ -56,7 +113,7 @@ Look up: Current class names and constructor signatures. These have changed mult
 
 If the user has a Vercel project, recommend AI Gateway — plain `"provider/model"` strings route through the gateway automatically. No provider SDK needed. OIDC auth via `vercel env pull`.
 
-**Do not hardcode model identifiers** (e.g., `claude-sonnet-4.5`, `gpt-4.1`). These change frequently. When scaffolding, look up the current recommended model for the chosen provider. Use the latest stable model, not an outdated one from this file.
+**Do not hardcode model identifiers** (e.g., `claude-sonnet-4.5`, `gpt-4.1`). These change frequently. When building, look up the current recommended model for the chosen provider. Use the latest stable model, not an outdated one from this file.
 
 ### Model recommendation logic (stable)
 
@@ -115,15 +172,14 @@ Most agents should be ephemeral. Only recommend durable when there's a clear rea
 Always required:
 - `ai` — AI SDK core
 - `zod` — schema validation for tools
+- `bash-tool` — sandboxed shell, file I/O, text processing
 - `typescript`, `tsx`, `@types/node` — TypeScript tooling
 
 Conditional (look up current versions before adding to package.json):
 - Provider SDK — based on model choice
+- `@ai-sdk/mcp` — if MCP servers chosen
 - `next`, `@ai-sdk/react` — web chat or Chat SDK primary
 - `chat`, `@chat-adapter/<platform>`, `@chat-adapter/state-redis` — Chat SDK (state adapter required alongside Redis client)
-- `@ai-sdk/mcp` — if MCP tools chosen
 - `@upstash/redis` or `ioredis` — if Redis state (without Chat SDK)
 - `@neondatabase/serverless` or `pg` — if Postgres state
-- `just-bash` — if virtual shell tools
-- `e2b` — if managed sandbox
 - `hono` — if API-only primary or +API add-on

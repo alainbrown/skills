@@ -8,6 +8,7 @@ This file is the single source of truth for all decisions. It is read by subagen
 {
   "phase": "design | scaffold | complete",
   "currentStage": 3,
+  "docsTools": true,
 
   "agent": {
     "name": "pr-review-agent",
@@ -52,12 +53,14 @@ This file is the single source of truth for all decisions. It is read by subagen
           {
             "name": "readFile",
             "description": "Read file contents from the repo",
+            "classification": "full",
             "inputSchema": { "path": "string" },
             "executeSummary": "fs.readFile at the given path"
           },
           {
             "name": "analyzeDiff",
             "description": "Parse a unified diff and extract changed lines with context",
+            "classification": "full",
             "inputSchema": { "diff": "string" },
             "executeSummary": "Parse unified diff format, return structured changes"
           }
@@ -134,6 +137,7 @@ This file is the single source of truth for all decisions. It is read by subagen
 |-------|------|---------|
 | `phase` | `"design" \| "scaffold" \| "complete"` | Current workflow phase |
 | `currentStage` | `number` | Active stage during design phase |
+| `docsTools` | `boolean` | Whether documentation tools (context7) are available. Determines if subagents look up API signatures or use training knowledge. |
 | `agent.name` | `string` | Project directory name (kebab-case) |
 | `agent.description` | `string` | One-line summary — used in README and package.json |
 | `agent.systemPrompt` | `string` | Complete system prompt — the agent's brain. Written verbatim into `instructions` during scaffolding. |
@@ -161,6 +165,8 @@ All context fields are optional. Only populate what the conversation actually re
 
 Each stage has `id`, `status`, and `decisions`. Status values: `pending`, `active`, `completed`, `skipped`, `invalidated`.
 
+**Rationale is required** for all completed stages (except Stage 1, which has no downstream cascade). The cascade algorithm uses the rationale to determine whether a downstream decision is still valid after an upstream change. Without it, the algorithm must conservatively invalidate everything.
+
 **Stage 1 — Purpose:**
 
 | Field | Purpose |
@@ -183,10 +189,10 @@ Each stage has `id`, `status`, and `decisions`. Status values: `pending`, `activ
 
 | Field | Purpose |
 |-------|---------|
-| `native` | Array of native tool specs: name, description, inputSchema (key→type), executeSummary |
+| `native` | Array of native tool specs: name, description, classification, inputSchema (key→type), executeSummary |
 | `mcp` | Array of MCP server specs: name, server package, transport type, purpose |
 
-Native tool `inputSchema` is simplified (key→type pairs) — subagents generate the full Zod schema from this. `executeSummary` describes what the execute function does in plain English — subagents write the implementation from this.
+Native tool `classification` is `"full"` (self-contained, must work out of the box) or `"integration"` (depends on external service, must have working structure with graceful not-configured handling). `inputSchema` is simplified (key→type pairs) — subagents generate the full Zod schema from this. `executeSummary` describes what the execute function does in plain English — subagents write the implementation from this.
 
 **Stage 4 — Model:**
 
