@@ -63,6 +63,14 @@
       "skills": [
         "./skills/agent-forge"
       ]
+    },
+    {
+      "name": "demo-creator",
+      "description": "Create narrated demo videos of any project from its codebase using Remotion and ElevenLabs TTS — reads the code, writes a script, generates voiceover, and produces a complete video project",
+      "source": "./",
+      "skills": [
+        "./skills/demo-creator"
+      ]
     }
   ]
 }
