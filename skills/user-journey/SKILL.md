@@ -11,80 +11,110 @@ description: >
 
 # User Journey — Playwright E2E Test Generator
 
-You generate Playwright test specs for user journeys. A "user journey" is any multi-step flow a real person would walk through in the browser — signing up, buying something, managing settings, onboarding, etc. Your job is to understand the journey, then produce a clean, maintainable `.spec.ts` file (or suite) that exercises it end-to-end.
+<purpose>
+Generate Playwright test specs for user journeys — any multi-step flow a real person would walk
+through in the browser (signing up, buying something, managing settings, onboarding). Understands
+the journey through conversation, codebase reading, or browser observation, then produces a clean,
+maintainable `.spec.ts` file (or suite) that exercises it end-to-end.
+</purpose>
 
-## Workflow
+## Workflow Overview
 
 ```
 User describes what they want tested
        |
   +-----------------+
-  | 1. DISCOVER     |  Understand the journey (conversation, codebase, or browser)
+  | DISCOVER        |  Understand the journey (conversation, codebase, or browser)
   +--------+--------+
            |
   +-----------------+
-  | 2. SETUP        |  Ensure Playwright is installed and configured
+  | SETUP           |  Ensure Playwright is installed and configured
   +--------+--------+
            |
   +-----------------+
-  | 3. DESIGN       |  Map out steps, assertions, and edge cases
+  | DESIGN          |  Map out steps, assertions, and edge cases
   +--------+--------+
            |
   +-----------------+
-  | 4. GENERATE     |  Write the .spec.ts file(s)
+  | GENERATE        |  Write the .spec.ts file(s)
   +--------+--------+
            |
   +-----------------+
-  | 5. VERIFY       |  Run the tests and iterate on failures
+  | VERIFY          |  Run the tests and iterate on failures
   +-----------------+
 ```
 
----
+<process>
 
-## Phase 0: Detect Available Tools
+<step name="detect_tools">
+**Check what MCP servers are available before starting.**
 
-Before starting, check what MCP servers are available in the environment. These aren't required — the skill works fine without them — but they significantly improve the quality of generated tests.
+Scan for tools in the environment. These are optional — the skill works without them — but they
+improve test quality when present.
 
 ### Playwright MCP
 
-Check if Playwright MCP tools are available (look for tools like `mcp__*playwright*__browser_navigate`, `mcp__*playwright*__browser_snapshot`, `mcp__*playwright*__browser_click`, etc.).
+Check for tools like `mcp__*playwright*__browser_navigate`, `mcp__*playwright*__browser_snapshot`,
+`mcp__*playwright*__browser_click`, etc.
 
-**If available:** Browser-driven discovery (Option C) becomes the recommended approach when the app is running locally. The Playwright MCP lets you actually navigate the app, take snapshots, interact with forms, and observe the real UI — producing much more accurate test specs than guessing from code alone.
+| Available? | Effect |
+|------------|--------|
+| Yes | Browser-driven discovery becomes the recommended approach when the app is running locally |
+| No | Suggest setup if the user wants browser-driven discovery, then fall back to conversation or codebase |
 
-**If not available and the user wants browser-driven discovery:** Suggest setting it up:
+If not available and the user wants browser discovery:
 
 > "Browser-driven discovery works best with the Playwright MCP server, which lets me navigate your running app and observe the actual UI. Want me to help you set it up?"
 
-If a documentation MCP (Context7) is available, query it for the latest Playwright MCP setup instructions rather than guessing the command — package names and config formats change frequently. If no docs MCP is available, point the user to search for "Playwright MCP server" setup for their specific AI client.
+If a documentation MCP (Context7) is available, query it for latest Playwright MCP setup
+instructions rather than guessing the command. If no docs MCP is available, point the user to
+search for "Playwright MCP server" setup for their specific AI client.
 
-Don't block on this — offer it, then fall back to conversation-driven or codebase-driven if the user declines.
+Don't block on this — offer it, then fall back.
 
 ### Documentation MCP (Context7 or similar)
 
-Check if a documentation-fetching MCP is available (e.g., Context7 tools like `mcp__*context7*__query-docs`).
+Check for tools like `mcp__*context7*__query-docs`.
 
-**If available:** Use it in Phase 4 (Generate) to pull the latest Playwright API docs before writing code. This ensures you're using current locator methods, assertion APIs, and configuration options rather than relying on potentially outdated training data.
+| Available? | Effect |
+|------------|--------|
+| Yes | Use in the `generate` step to pull latest Playwright API docs before writing code |
+| No | Proceed normally — the patterns in `references/playwright-patterns.md` are solid |
 
-**If not available:** Proceed normally. The Playwright patterns in this skill are solid — the docs MCP is a nice-to-have for verifying edge cases, not a requirement.
+▶ Next: `discover`
+</step>
 
----
+<!-- ═══════════════════════════════════════════ -->
+<!-- UNDERSTAND THE JOURNEY                     -->
+<!-- ═══════════════════════════════════════════ -->
 
-## Phase 1: Discover the Journey
+<step name="discover">
+**Understand what the user wants tested.**
 
-You need to understand what the user wants tested. There are three ways to learn this — ask which approach the user prefers, or pick the most practical one based on context.
+There are three discovery approaches. Ask which the user prefers, or pick the most practical one
+based on context.
 
-### Option A: Conversation-driven
+Ask via AskUserQuestion:
+- header: "Discovery?"
+- question: "How should I learn this journey?"
+- options:
+  - "Describe it" — I'll walk you through it in conversation
+  - "Read codebase" — explore routes, forms, and components in the project
+  - "Browse the app" — navigate the running app with Playwright MCP
+  - "Let me explain" — freeform input
 
-The user describes the journey in natural language. Ask clarifying questions to fill gaps:
+### Conversation-driven
 
-- What's the starting point? (URL, page, or state like "logged in")
-- What does the user do at each step? (click, type, navigate, upload)
-- What's the expected outcome? (confirmation page, toast, redirect, data change)
-- Are there preconditions? (existing account, seeded data, specific role)
+The user describes the journey in natural language. Ask clarifying questions one at a time:
+
+1. What's the starting point? (URL, page, or state like "logged in")
+2. What does the user do at each step? (click, type, navigate, upload)
+3. What's the expected outcome? (confirmation page, toast, redirect, data change)
+4. Are there preconditions? (existing account, seeded data, specific role)
 
 Summarize the journey as a numbered step list and confirm before proceeding.
 
-### Option B: Codebase-driven
+### Codebase-driven
 
 Explore the project to discover routes, pages, and components. Look for:
 
@@ -93,35 +123,43 @@ Explore the project to discover routes, pages, and components. Look for:
 - **Auth patterns** — login pages, middleware/proxy guards, session checks
 - **State transitions** — redirects after actions, success/error pages
 
-Build the journey from what the code reveals. Present your understanding to the user for confirmation — the code shows *what exists*, but only the user knows *which flows matter*.
+Build the journey from what the code reveals. Present your understanding to the user for
+confirmation — code shows *what exists*, but only the user knows *which flows matter*.
 
-### Option C: Browser-driven (recommended when Playwright MCP is available)
+### Browser-driven (recommended when Playwright MCP is available)
 
-If the app is running locally (dev server) and the Playwright MCP is available, use it to walk through the app:
+If the app is running locally and the Playwright MCP is available:
 
 1. **Navigate** to the starting URL using `browser_navigate`
-2. **Snapshot** the page at each step using `browser_snapshot` to understand the UI structure, visible elements, labels, and roles
+2. **Snapshot** the page at each step using `browser_snapshot` to understand UI structure, visible elements, labels, and roles
 3. **Interact** with forms (`browser_fill_form`), buttons (`browser_click`), and navigation
 4. **Record** the sequence of actions, the locators that worked, and the resulting page states
 
-This is the most accurate approach because you're observing the real DOM — you see the actual labels, roles, and element structure. The locators in your generated spec will match reality instead of being guesses.
+This is the most accurate approach — you see the actual labels, roles, and element structure. The
+locators in the generated spec will match reality instead of being guesses.
 
 **Key Playwright MCP tools for discovery:**
 - `browser_navigate` — go to a URL
-- `browser_snapshot` — get the accessibility tree (shows roles, names, and labels — exactly what you need for locators)
+- `browser_snapshot` — get the accessibility tree (roles, names, labels — exactly what you need for locators)
 - `browser_click` — click elements by text or ref
 - `browser_fill_form` — fill form fields
 - `browser_take_screenshot` — visual reference if the snapshot isn't enough
 
-If the Playwright MCP is not available, you can still do browser-driven discovery using any agent-browser tooling in the environment, or fall back to Options A/B.
+If the Playwright MCP is not available, use any agent-browser tooling in the environment, or fall
+back to conversation/codebase approaches.
 
-You can combine approaches — for example, read the codebase to understand routes, then browse the app to discover the actual UI flow, then confirm with the user.
+You can combine approaches — read the codebase to understand routes, browse the app to discover
+the actual UI flow, then confirm with the user.
 
----
+▶ Next: `setup`
+</step>
 
-## Phase 2: Setup
+<!-- ═══════════════════════════════════════════ -->
+<!-- PLAYWRIGHT CONFIGURATION                   -->
+<!-- ═══════════════════════════════════════════ -->
 
-Before generating tests, make sure the project has Playwright ready.
+<step name="setup">
+**Ensure Playwright is installed and configured.**
 
 ### Check existing setup
 
@@ -141,13 +179,16 @@ Respect the existing configuration. Note:
 
 ### If Playwright is NOT set up
 
-Ask the user:
-
-> "This project doesn't have Playwright set up yet. Want me to initialize it? I'll run `npm init playwright@latest` and configure it for your project."
+Ask via AskUserQuestion:
+- header: "Setup?"
+- question: "This project doesn't have Playwright set up yet. Initialize it?"
+- options:
+  - "Yes, set it up" — run npm init playwright@latest and configure
+  - "Skip for now" — I'll set it up myself later
 
 If they agree:
 
-1. Run `npm init playwright@latest` (or the equivalent for their package manager)
+1. Run `npm init playwright@latest` (or equivalent for their package manager)
 2. Configure `playwright.config.ts` with sensible defaults:
    - `baseURL` pointing to their dev server (detect from `package.json` scripts or framework defaults)
    - `trace: 'on-first-retry'` for debugging
@@ -155,19 +196,25 @@ If they agree:
    - Start with Chromium only (faster dev cycle), mention they can enable more browsers later
    - `testDir` matching project conventions
 
-### Suite setup question
+### Suite structure
 
-After confirming Playwright is ready, ask:
+After confirming Playwright is ready, ask via AskUserQuestion:
+- header: "Structure?"
+- question: "Full test suite with page objects and shared fixtures, or just the spec file?"
+- options:
+  - "Just the spec" — start simple, extract page objects later if needed
+  - "Full suite" — page objects, shared fixtures, organized from the start
+  - "Let me explain" — specific structure in mind
 
-> "Do you want a full test suite structure with page objects and shared fixtures, or just the spec file for now? I'd recommend starting with the spec — we can extract page objects later if the test directory grows."
+▶ Next: `design`
+</step>
 
-This guides the structural decision without forcing overhead on simple projects.
+<!-- ═══════════════════════════════════════════ -->
+<!-- TEST DESIGN                                -->
+<!-- ═══════════════════════════════════════════ -->
 
----
-
-## Phase 3: Design the Journey
-
-Before writing code, map out the test design. This is your blueprint.
+<step name="design">
+**Map out the test design — steps, assertions, locators, and edge cases.**
 
 ### Step map
 
@@ -193,7 +240,9 @@ Example:
 
 ### Locator strategy
 
-**Always read the source code** for the pages in the journey before choosing locators. Look at the actual component JSX/HTML to see what labels, roles, and test IDs exist. Don't guess from the page description — the real DOM determines what locators work.
+**Always read the source code** for the pages in the journey before choosing locators. Look at the
+actual component JSX/HTML to see what labels, roles, and test IDs exist. Don't guess from the page
+description — the real DOM determines what locators work.
 
 Choose locators in this priority order:
 
@@ -202,30 +251,25 @@ Choose locators in this priority order:
 3. **Text-based** — `getByText('Welcome back')` — good for content verification
 4. **Test ID** — `getByTestId('checkout-summary')` — fallback when semantic locators aren't practical
 
-Avoid CSS selectors and XPath. They break when the DOM changes and tell you nothing about what the element *is*.
-
 ### Auth handling
 
-If the journey requires authentication:
-
-- **Simple:** Log in as part of the test (acceptable for 1-2 tests)
-- **Shared auth state:** Create an `auth.setup.ts` that logs in once and saves `storageState` to a file. Other tests reuse it via `use: { storageState }` in the config. Recommend this when 3+ tests need auth.
-
-Present the step map to the user for review before generating code.
+| Condition | Approach |
+|-----------|----------|
+| 1-2 tests need auth | Log in as part of the test (inline) |
+| 3+ tests need auth | Create `auth.setup.ts` with shared `storageState` (template in `references/playwright-patterns.md`) |
 
 ### Test data strategy
 
-Before generating, ask how the journey's preconditions are satisfied:
+Ask how the journey's preconditions are satisfied — don't assume test data exists:
 
-- **Does the journey need a test user?** How is it created — seeded database, API call in a `beforeAll`, or signup as part of the test? If seeded, what are the credentials?
-- **Does it need specific data state?** Items in a cart, an existing order, admin permissions. Ask whether this is seeded or must be set up in the test.
-- **Cleanup:** Does the test create data that needs cleanup? (e.g., a new user on every run would fill the database). If so, add a teardown step or use unique identifiers per run.
-
-Don't assume test data exists. The baseline LLM always hardcodes `test@example.com` / `password123` and hopes it works. Ask, then encode the real strategy into the test's setup.
+- **Does the journey need a test user?** How is it created — seeded database, API call in `beforeAll`, or signup as part of the test? If seeded, what are the credentials?
+- **Does it need specific data state?** Items in a cart, an existing order, admin permissions. Seeded or set up in the test?
+- **Cleanup:** Does the test create data that needs cleanup? If so, add a teardown step or use unique identifiers per run.
 
 ### Negative assertions for conditional flows
 
-When a journey has branching paths (e.g., different form steps based on a selection), include negative assertions that verify the *wrong* content doesn't appear. For example, if the user selects "Auto insurance" and sees vehicle fields, also assert that property fields and health fields are *not* visible. This catches bugs where the wrong branch renders.
+When a journey has branching paths (e.g., different form steps based on a selection), include
+negative assertions that verify the *wrong* content doesn't appear:
 
 ```typescript
 await test.step('Verify only vehicle fields are shown', async () => {
@@ -236,7 +280,8 @@ await test.step('Verify only vehicle fields are shown', async () => {
 });
 ```
 
-Only add these when the journey has conditional branches — don't add negative assertions to linear flows where they'd be noise.
+Only add these when the journey has conditional branches — don't add negative assertions to linear
+flows where they'd be noise.
 
 ### Edge cases
 
@@ -248,21 +293,33 @@ Consider and ask about:
 
 Only add edge case tests if the user wants them — don't over-generate.
 
----
+Present the step map to the user for review before generating code.
 
-## Phase 4: Generate the Test
+▶ Next: `generate`
+</step>
 
-If a documentation MCP (like Context7) is available, query it for the latest Playwright test API docs before writing code — especially for locator methods, assertion APIs, or configuration options you're less certain about. This takes seconds and prevents generating code with deprecated or renamed APIs.
+<!-- ═══════════════════════════════════════════ -->
+<!-- CODE GENERATION                            -->
+<!-- ═══════════════════════════════════════════ -->
 
-Write clean, readable Playwright specs. Read `references/playwright-patterns.md` for the spec file template, Page Object Model pattern, auth setup with storageState, and webServer config.
+<step name="generate">
+**Write the .spec.ts file(s).**
+
+If a documentation MCP (like Context7) is available, query it for the latest Playwright test API
+docs before writing code — especially for locator methods, assertion APIs, or configuration options
+you're less certain about. This takes seconds and prevents generating code with deprecated or
+renamed APIs.
+
+Read `references/playwright-patterns.md` for the spec file template, Page Object Model pattern,
+auth setup with storageState, and webServer config.
 
 ### Code principles
 
-- **`test.step()` for every journey phase.** This gives readable trace output and makes failures easy to locate. Each step should map to a logical user action, not a single line of code.
+- **`test.step()` for every journey phase.** Readable trace output, easy failure location. Each step maps to a logical user action, not a single line of code.
 
 - **Web-first assertions everywhere.** Use `expect(locator).toBeVisible()`, `expect(page).toHaveURL()`, `expect(locator).toHaveText()`. These auto-wait and produce clear error messages. Never use `page.waitForSelector()` followed by a manual check.
 
-- **No magic waits.** Don't use `page.waitForTimeout()`. If you need to wait for something, wait for a specific condition — a network response (`page.waitForResponse()`), a URL change (`page.waitForURL()`), or an element state.
+- **No magic waits.** Don't use `page.waitForTimeout()`. Wait for a specific condition — a network response (`page.waitForResponse()`), a URL change (`page.waitForURL()`), or an element state.
 
 - **Descriptive test names.** The test name should describe the journey outcome: `'should complete checkout with credit card'`, not `'test checkout'`.
 
@@ -272,11 +329,15 @@ Write clean, readable Playwright specs. Read `references/playwright-patterns.md`
 
 - **Shared auth state for 3+ tests.** Use storageState (template in `references/playwright-patterns.md`) when multiple tests need authentication. Inline login is fine for 1-2 tests.
 
----
+▶ Next: `verify`
+</step>
 
-## Phase 5: Verify
+<!-- ═══════════════════════════════════════════ -->
+<!-- RUN AND ITERATE                            -->
+<!-- ═══════════════════════════════════════════ -->
 
-After generating the test, run it.
+<step name="verify">
+**Run the tests and iterate on failures.**
 
 ### Run the tests
 
@@ -286,32 +347,56 @@ npx playwright test <spec-file> --reporter=list
 
 Use `--reporter=list` for readable console output during development.
 
-If the app isn't running, check if there's a `webServer` config in `playwright.config.ts`. If not, tell the user they need to start their dev server first, or offer to add a `webServer` block (template in `references/playwright-patterns.md`).
+If the app isn't running, check if there's a `webServer` config in `playwright.config.ts`. If not,
+tell the user they need to start their dev server first, or offer to add a `webServer` block
+(template in `references/playwright-patterns.md`).
 
 ### Handle failures
 
 When tests fail:
 
-1. **Read the error message carefully.** Playwright errors are descriptive — they tell you what was expected vs. what happened.
-2. **Check if it's a locator issue.** The most common failure is targeting an element that doesn't match. Adjust the locator strategy.
-3. **Check if it's a timing issue.** If the app is slow, the assertion may need a more specific wait condition — not a longer timeout.
-4. **Check if the journey assumption was wrong.** Maybe the flow works differently than expected. If using browser-driven discovery, re-browse to confirm.
+| Check | What to look for |
+|-------|-----------------|
+| Error message | Playwright errors are descriptive — expected vs. actual |
+| Locator issue | Most common failure — element doesn't match. Adjust locator strategy |
+| Timing issue | App is slow — needs a more specific wait condition, not a longer timeout |
+| Wrong assumption | Flow works differently than expected. Re-browse to confirm if using browser discovery |
 
-Fix and rerun. Don't iterate more than 3 times on the same failure — if it's still broken, explain the issue to the user and ask for guidance.
+Fix and rerun. Don't iterate more than 3 times on the same failure — if it's still broken, explain
+the issue to the user and ask for guidance.
 
-### Show the user
+### Present results
 
 After tests pass, show the user:
 - The generated spec file(s)
 - A summary of what each test covers
 - Suggestions for expanding coverage (edge cases, other browsers, mobile viewports)
 
-If the user wants to see the test in action: `npx playwright test <spec-file> --headed` runs with a visible browser.
+If the user wants to see the test in action: `npx playwright test <spec-file> --headed` runs with
+a visible browser.
+</step>
 
----
+</process>
 
-## Tone
+<guardrails>
+- NEVER use CSS selectors or XPath for locators — they break when the DOM changes and tell you nothing about what the element is
+- NEVER use `page.waitForTimeout()` — always wait for a specific condition (network response, URL change, element state)
+- NEVER use `page.waitForSelector()` followed by a manual check — use web-first assertions that auto-wait
+- NEVER assume test data exists — always ask about credentials, seeded data, and preconditions
+- NEVER over-generate — one solid journey test on the critical path beats ten brittle tests checking every permutation
+- Don't iterate more than 3 times on the same test failure — explain the issue and ask for guidance
+- Don't create page objects for something used in only one test — extract when 3+ pages are reused
+- MCP tools (Playwright, Context7) are optional enhancements — the skill must work without them
+- If a journey is simple, the test should be simple — match complexity to the flow
+- If the user asks for something better tested at the unit or integration level, say so — but still write the E2E test if they want it
+</guardrails>
 
-You're a testing expert who values pragmatism. Write tests that catch real bugs, not tests that exist for coverage metrics. If a journey is simple, the test should be simple. If the user asks for something that would be better tested at the unit or integration level, say so — but still write the E2E test if they want it.
-
-Don't over-generate. One solid journey test that exercises the critical path is worth more than ten brittle tests that check every permutation.
+<success_criteria>
+- [ ] Journey understood — steps, preconditions, and expected outcomes confirmed with the user
+- [ ] Playwright configured — existing setup respected or new setup initialized
+- [ ] Step map reviewed — locator strategy, assertions, and wait conditions planned before coding
+- [ ] Test data strategy addressed — no hardcoded credentials or assumed data
+- [ ] Spec file generated — clean, readable `.spec.ts` using `test.step()` and web-first assertions
+- [ ] Tests pass — ran successfully against the app with failures iterated to resolution
+- [ ] User shown results — spec files, coverage summary, and expansion suggestions presented
+</success_criteria>

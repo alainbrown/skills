@@ -12,9 +12,26 @@ description: >
 
 # Agent Forge
 
-You help users create specialized TypeScript agents by composing AI SDK with bash-tool, MCP servers, and targeted interfaces. You interview, recommend, and build — producing a working agent project.
+<purpose>
+Help users create specialized TypeScript agents by composing AI SDK with bash-tool, MCP servers,
+and targeted interfaces. Interview, recommend, and build — producing a working project the user
+can `npm install && npm start` and immediately interact with.
+</purpose>
 
-**Target output:** A project the user can `npm install && npm start` and immediately interact with. The agent uses `bash-tool` for general-purpose operations, MCP servers for rich integrations, and bespoke native tools only for domain-specific operations that bash and MCP can't handle.
+<core_principle>
+**Durable state via `agent-forge.json`.** This file survives context compression and drives the
+build phase — it is the single source of truth for all decisions.
+
+- **Write after every decision.** After any stage completes or choice changes, update the state file.
+- **Read before each step.** Before presenting options or acting on a decision, read the file to
+  refresh context — especially important after context compression.
+- **Delete after building.** It has served its purpose.
+
+Schema: See `references/state-schema.md` for the complete schema, field reference, and worked
+example. Include: `phase`, `currentStage`, `docsTools`, `agent` (name, description, systemPrompt),
+`context` (summary, intent, audience, style, futureConsiderations), `stages` (1-7 with decisions),
+and `dependencies`.
+</core_principle>
 
 ## Architecture
 
@@ -39,49 +56,16 @@ Changing the interface never changes the agent logic. Multiple interfaces coexis
 
 Every agent gets three layers of tools:
 
-### 1. bash-tool (always included)
+**1. bash-tool (always included)** — wraps `just-bash`, provides AI SDK-compatible tools via
+`createBashTool()`. Covers shell execution, file I/O, grep, sed, awk, jq, curl. One import,
+dozens of capabilities, sandboxed.
 
-`bash-tool` wraps `just-bash` and provides AI SDK-compatible tools via `createBashTool()`. Covers shell execution, file I/O, grep, sed, awk, jq, curl, and all common Unix operations. One import, dozens of capabilities, sandboxed.
+**2. MCP servers (configured per agent)** — rich integrations from the MCP ecosystem. Consult
+`references/component-library.md` for the full recommendation tables.
 
-### 2. MCP servers (configured per agent)
+**3. Bespoke native tools (rare)** — only for domain-specific operations that bash and MCP cannot
+handle. Written following `references/integration-tool-pattern.ts`.
 
-Rich integrations from the MCP ecosystem. Recommended servers:
-
-**Cloud providers (all official):**
-
-| Provider | Package / Command | Run with |
-|----------|-------------------|----------|
-| AWS | `powertools-for-aws-mcp` | `npx -y powertools-for-aws-mcp` |
-| GCP | `gcloud-mcp` | `npx -y gcloud-mcp` |
-| Azure | `@azure/mcp` | `npx -y @azure/mcp@latest server start` |
-| Vercel | `mcp-handler` | See Vercel MCP docs |
-
-**General-purpose (all official):**
-
-| Server | Package | Run with |
-|--------|---------|----------|
-| GitHub | `@modelcontextprotocol/server-github` | `npx -y @modelcontextprotocol/server-github` |
-| Playwright | `@playwright/mcp` | `npx -y @playwright/mcp@latest` |
-| Filesystem | `@modelcontextprotocol/server-filesystem` | `npx -y @modelcontextprotocol/server-filesystem /path` |
-| Fetch | `@modelcontextprotocol/server-fetch` | `npx -y @modelcontextprotocol/server-fetch` |
-
-**Recommendation by agent purpose:**
-
-| Agent purpose | Recommended MCP servers |
-|---------------|------------------------|
-| Cloud infrastructure (single cloud) | That cloud's MCP (AWS/GCP/Azure) |
-| Cloud infrastructure (multi-cloud) | AWS + GCP + Azure MCPs (user configures what they use) |
-| Code review / dev tools | GitHub MCP |
-| Web scraping / testing | Playwright MCP, Fetch MCP |
-| Deployment / hosting | Vercel MCP |
-| Research / Q&A | Fetch MCP |
-| General-purpose | Filesystem MCP |
-
-### 3. Bespoke native tools (rare)
-
-Only for domain-specific operations that bash and MCP can't handle. Written following the integration-point pattern in `references/integration-tool-pattern.ts`. Examples: custom safety-tier enforcement, proprietary API wrappers, cost projection from internal data.
-
-**Decision flowchart:**
 ```
 Can this be done with a bash command? → Yes → bash-tool handles it
                                        → No ↓
@@ -100,101 +84,128 @@ Write a bespoke native tool
 - `references/cascade-logic.md` — Dependency graph, cascade rules, algorithm
 - `references/integration-tool-pattern.ts` — Pattern for writing bespoke tools (credential check, not_configured fallback, integration point)
 
-## Durable State
+<process>
 
-Persist progress to `agent-forge.json` in the working directory. This file is the single source of truth — it survives context compression and drives the build phase.
+<!-- ═══════════════════════════════════════════ -->
+<!-- DESIGN PHASE                               -->
+<!-- ═══════════════════════════════════════════ -->
 
-**Write after every decision.** After any stage completes or choice changes, update the state file.
+<step name="check_environment">
+**Check for documentation tools before starting.**
 
-**Read before each stage.** Before presenting options or acting on a decision, read the file to refresh context.
+Detect whether context7 or similar docs tools are available. Record in `agent-forge.json` under
+`docsTools: true|false`. When available, use them to look up current AI SDK API signatures before
+writing code.
 
-**Delete after building.** It's served its purpose.
+▶ Next: `capture_purpose`
+</step>
 
-**Schema:** See `references/state-schema.md` for the complete schema.
+<step name="capture_purpose">
+**Understand the agent's purpose, draft the system prompt, and name the agent.**
 
----
+The system prompt IS the agent's application logic. Present one stage per response — stop and wait
+for the user to respond after each. Do not combine stages. Do not infer approval.
 
-## Workflow
+### Understand the agent
 
-Two phases: **Design** (interview + decisions), then **Build** (generate the project).
+Ask one question at a time (skip what is already known):
+1. What should this agent do? What problem does it solve?
+2. Who uses it? (developers, end users, internal team)
+3. What should it be good at? What should it refuse or avoid?
+4. Any constraints? (response length, tone, domain boundaries)
 
-### Before starting
+### Draft the system prompt
 
-Check if documentation tools (context7 or similar) are available. Record in `agent-forge.json` under `docsTools: true|false`. When available, use them to look up current AI SDK API signatures before writing code.
+Write a complete system prompt — role, expertise, behavioral guidelines, output format, domain
+knowledge. Present for review. Iterate until satisfied.
 
----
+### Name the agent
 
-## Phase 1: Design
+Suggest a name (kebab-case). Let user override.
 
-**Stage flow — one at a time.** Present one stage per response. After presenting your recommendation and reasoning, stop and wait for the user to respond. Do not combine multiple stages into a single message. Do not infer approval.
+**Wait for explicit confirmation before advancing.**
 
-**Exception:** Stages 4-7 are often straightforward. If the user says "just pick sensible defaults" or "proceed," you may present stages 4-7 together as a batch. Never batch stages 1-3.
+▶ Next: `choose_interface`
+</step>
 
-**After each stage:** Update `agent-forge.json`, then present the next stage.
-
-### Stage 1 — Purpose & Persona
-
-The system prompt IS the agent's application logic.
-
-**Step 1: Understand the agent.** Ask (skip what's already known):
-- What should this agent do? What problem does it solve?
-- Who uses it? (developers, end users, internal team)
-- What should it be good at? What should it refuse or avoid?
-- Any constraints? (response length, tone, domain boundaries)
-
-**Step 2: Draft the system prompt.** Write a complete system prompt — role, expertise, behavioral guidelines, output format, domain knowledge. Present for review. Iterate until satisfied.
-
-**Step 3: Name the agent.** Suggest a name (kebab-case). Let user override.
-
-**→ Stop here.** Wait for confirmation before advancing to Stage 2.
-
-### Stage 2 — Interface
+<step name="choose_interface">
+**Select the primary interface and any add-ons.**
 
 Consult `references/component-library.md` for the interface recommendation table.
 
-**Primary interface** (pick one):
-- Developer tool → CLI
-- Internal team → Slack or Teams
-- Community-facing → Discord or Telegram
-- User-facing product → Web chat
-- Service/backend → API-only
-- Multiple audiences → Multi-platform (Chat SDK)
+### Primary interface
 
-**Add-ons** (pick any):
-- **+CLI** — always recommend for non-CLI primaries
-- **+API** — recommend for Chat SDK agents and CLI agents needing remote access
+| Agent audience | Recommended primary |
+|----------------|---------------------|
+| Developer tool | CLI |
+| Internal team | Slack or Teams |
+| Community-facing | Discord or Telegram |
+| User-facing product | Web chat |
+| Service/backend | API-only |
+| Multiple audiences | Multi-platform (Chat SDK) |
 
-**→ Stop here.** Wait for confirmation before advancing to Stage 3.
+### Add-ons
 
-### Stage 3 — Tools
+| Add-on | When to recommend |
+|--------|-------------------|
+| +CLI | Always for non-CLI primaries |
+| +API | For Chat SDK agents and CLI agents needing remote access |
 
-**Step 1: Determine tool needs.** bash-tool is always included. Determine:
-- Which **MCP servers** the agent needs (recommend from the tables above)
-- Whether any **bespoke native tools** are needed (justify why bash/MCP can't cover them)
+Ask via AskUserQuestion:
+- header: "Interface"
+- question: "Based on your agent's audience, I recommend [X]. Sound right?"
+- options:
+  - "Use recommended" — proceed with the recommendation
+  - "Pick different" — choose a different primary interface
+  - "Let me explain" — describe your setup
 
-**Step 2: Write specs** for bespoke tools (if any) and record MCP server choices.
+**Wait for explicit confirmation before advancing.**
 
-**→ Stop here.** Wait for confirmation before advancing to Stage 4.
+▶ Next: `select_tools`
+</step>
 
-### Stage 4 — Model & Configuration
+<step name="select_tools">
+**Determine which tools the agent needs beyond bash-tool.**
+
+bash-tool is always included. Determine:
+- Which **MCP servers** the agent needs (recommend from `references/component-library.md`)
+- Whether any **bespoke native tools** are needed (justify why bash/MCP cannot cover them)
+
+Write specs for bespoke tools (if any) and record MCP server choices.
+
+**Wait for explicit confirmation before advancing.**
+
+▶ Next: `configure_remaining`
+</step>
+
+<step name="configure_remaining">
+**Configure model, durability, state, and deployment (stages 4-7).**
+
+These stages are often straightforward. If the user says "just pick sensible defaults" or
+"proceed," present stages 4-7 together as a batch. Never batch stages 1-3.
+
+### Model and configuration (stage 4)
 
 Consult `references/component-library.md`. Configure model provider, `stopWhen`, and `prepareStep`.
 
-### Stage 5 — Durability
+### Durability (stage 5)
 
-Most agents should be ephemeral (`ToolLoopAgent`). Only recommend durable for long-running tasks, human-in-the-loop, or production SLA.
+Most agents should be ephemeral (`ToolLoopAgent`). Only recommend durable for long-running tasks,
+human-in-the-loop, or production SLA.
 
-### Stage 6 — State Management
+### State management (stage 6)
 
 Key rule: Chat SDK requires Redis; durable agents require Postgres.
 
-### Stage 7 — Deployment
+### Deployment (stage 7)
 
 Auto-skip for CLI-only. Vercel for Next.js, Railway/Fly for others.
 
-### Stage Confirmation
+▶ Next: `confirm_design`
+</step>
 
-Show summary table, ask "Ready to build?"
+<step name="confirm_design">
+**Show summary table and get build approval.**
 
 ```
 Agent: [name]
@@ -213,23 +224,39 @@ Purpose: [one-line description]
 Ready to build?
 ```
 
-### Cascading Invalidation
+Ask via AskUserQuestion:
+- header: "Build?"
+- question: "Design is complete. Ready to build the project?"
+- options:
+  - "Build it" — generate the project files
+  - "Change something" — revisit a specific stage
+  - "Let me explain" — other feedback
 
-See `references/cascade-logic.md`. Key principles:
+### Cascading invalidation
+
+If the user wants to change a completed stage, consult `references/cascade-logic.md` for the
+dependency graph and cascade rules. Key principles:
 - Agent core is decoupled from infrastructure
 - Add/remove CLI never cascades
 - Model and State are leaf nodes
 - When in doubt, ask
 
----
+▶ Next: `build_core` (if approved) or back to the changed stage
+</step>
 
-## Phase 2: Build
+<!-- ═══════════════════════════════════════════ -->
+<!-- BUILD PHASE                                -->
+<!-- ═══════════════════════════════════════════ -->
 
-Read `agent-forge.json` for all finalized decisions. Generate the project files using subagents. If `docsTools` is true, subagents must look up current AI SDK API signatures from documentation before writing code.
+<step name="build_core">
+**Generate the agent core and tools using a subagent.**
 
-### Subagent 1 — Agent Core + Tools (run first)
+Read `agent-forge.json` for all finalized decisions. If `docsTools` is true, subagents must look
+up current AI SDK API signatures from documentation before writing code.
 
-Generate these files based on `agent-forge.json`:
+### Subagent 1: Agent Core + Tools (run first)
+
+Generate based on `agent-forge.json`:
 
 **`agent.ts`** (~15 lines):
 - Import `ToolLoopAgent`, `stepCountIs` from `ai`
@@ -238,13 +265,14 @@ Generate these files based on `agent-forge.json`:
 - Import native tools from `./tools` (if any bespoke tools exist)
 - Call `await createBashTool()` to get bash tools
 - If MCP servers chosen: import `connectMCPTools` from `./mcp`, call it, merge tools
-- Create and export `ToolLoopAgent` with: model, `instructions` set to system prompt from `agent-forge.json`, merged tools (`{ ...bashTools, ...mcpTools, ...nativeTools }`), `stopWhen` from stage 4
+- Create and export `ToolLoopAgent` with: model, `instructions` set to system prompt from
+  `agent-forge.json`, merged tools, `stopWhen` from stage 4
 - System prompt goes verbatim — do not modify it
 
 **`mcp.ts`** (only if MCP servers chosen):
 - Import `createMCPClient` from `@ai-sdk/mcp`
-- Define MCP server configs from stage 3 (package name, transport: stdio, args)
-- Export `connectMCPTools()` — connects to each server, merges tools into flat record, logs warnings for failed connections
+- Define MCP server configs from stage 3
+- Export `connectMCPTools()` — connects to each server, merges tools, logs warnings for failures
 - Export `closeMCPClients()` — shuts down all clients
 - Handle connection failures gracefully — never crash
 
@@ -255,114 +283,119 @@ Generate these files based on `agent-forge.json`:
 **Bespoke tool files** (if any, following `references/integration-tool-pattern.ts`):
 - Import `tool` from `ai`, `z` from `zod`
 - Define Zod input schema with `.describe()` annotations
-- Execute function must: check credentials exist → return `{ status: "not_configured", message, setup }` if missing → perform the operation → return typed result
+- Execute: check credentials → return `{ status: "not_configured", message, setup }` if missing
+  → perform operation → return typed result
 - Never `throw` on missing config. Never leave bare TODOs. Complete, working implementations.
 
 **`tsconfig.json`**:
 - CLI/API: target ES2022, Node16 module resolution, strict, `@/*` path alias
 - Next.js: bundler resolution, JSX preserve, `next` plugin, `@/*` path alias
 
-### Subagent 2 — Interface Layer (after subagent 1)
+▶ Next: `build_interface`
+</step>
 
-Generate based on stage 2 decisions. Every interface imports the agent from `agent.ts`.
+<step name="build_interface">
+**Generate the interface layer and package files using subagents.**
+
+Run these two subagents in parallel (outputs are independent):
+
+### Subagent 2: Interface Layer
+
+Generate based on stage 2 decisions. Every interface imports the agent from `agent.ts`. See
+`references/project-structures.md` for directory layouts per interface choice.
 
 **CLI** (`src/cli.ts`, ~20 lines):
-- Import `readline` from `node:readline/promises`
-- Import agent from appropriate path (`./agent` for standalone, `./lib/agent` for Next.js)
-- Loop: read input → `agent.stream({ prompt })` → iterate `textStream` → write chunks to stdout
+- readline loop, agent.stream(), write chunks to stdout
 - Handle Ctrl+C gracefully. Print startup message with agent name.
 
 **API** (`src/server.ts`, ~25 lines):
-- Import `Hono` from `hono`
-- Import agent
-- POST `/api/agent`: parse `{ prompt }` from body, call `agent.stream()`, return streamed response
-- GET `/health`: return `{ status: "ok" }`
+- Hono server, POST `/api/agent`, GET `/health`
 - Start on `PORT` env var (default 3000)
 
 **Web chat** (4 files):
-
-`src/app/api/chat/route.ts`:
-- Import `streamText`, `UIMessage`, `convertToModelMessages` from `ai`
-- Import model provider
-- POST handler: parse `{ messages: UIMessage[] }`, `await convertToModelMessages(messages)`, call `streamText()` with model + system prompt + converted messages, return `result.toUIMessageStreamResponse()`
-- Set `maxDuration = 60`
-
-`src/app/page.tsx`:
-- `'use client'` directive
-- Import `useChat` from `@ai-sdk/react`
-- Dark-themed chat UI with Tailwind:
-  - Header: agent name, status indicator (streaming/ready with colored dot)
-  - Messages: render via `message.parts` — handle `text` type (whitespace-pre-wrap) and `tool-invocation` type (show tool name + state)
-  - Empty state: agent description + 4 clickable suggestion prompts relevant to the agent's domain
-  - Input: form with `sendMessage({ text: input })`, disabled during streaming
-  - Footer: brief note about the agent's behavior
-- Style should match the agent's domain (DevOps dashboard feel, support chat feel, etc.)
-
-`src/app/layout.tsx`:
-- Import Geist fonts from `next/font/google`
-- `className="dark"` on `<html>`
-- Metadata: title from agent name, description from agent description
-
-`src/app/globals.css`:
-- `@import "tailwindcss"`
-- Dark theme CSS variables (zinc-950 background, zinc-100 text)
-- Custom scrollbar styling, code block styling
+- `src/app/api/chat/route.ts` — streamText with convertToModelMessages, maxDuration = 60
+- `src/app/page.tsx` — useChat, dark-themed, agent-domain styling, 4 suggestion prompts
+- `src/app/layout.tsx` — Geist fonts, dark mode
+- `src/app/globals.css` — Tailwind, dark theme variables
 
 **Chat SDK** (2 files per platform):
+- `src/lib/bot.ts` — Chat instance with platform adapters + Redis state
+- `src/app/api/bot/<platform>/route.ts` — webhook handler per platform
 
-`src/lib/bot.ts`:
-- Import `Chat` from `chat`
-- Import platform adapter(s) from `@chat-adapter/<platform>` (e.g., `createSlackAdapter` from `@chat-adapter/slack`)
-- Import state adapter from `@chat-adapter/state-redis`
-- Import agent
-- Create `Chat` instance with adapters map + Redis state
-- `onNewMention`: subscribe to thread, call `agent.stream({ prompt })`, `thread.post(result.textStream)`
-- `onSubscribedMessage`: call `agent.stream({ prompt })`, post response
-- Export `bot`
+**`next.config.ts`** (if Next.js): mark Chat SDK packages as `serverExternalPackages`
 
-`src/app/api/bot/<platform>/route.ts` (one per platform):
-- Import bot
-- POST handler: delegate to `bot.webhooks.<platform>(request, { waitUntil })`
+### Subagent 3: Package, Deploy, README
 
-**`next.config.ts`** (if Next.js):
-- Mark Chat SDK packages as `serverExternalPackages`
+**`package.json`**: name, version, `"type": "module"`, scripts per interface, dependencies
+(ai, zod, bash-tool always + model SDK + interface packages + MCP + state). Use current versions
+if docs tools available; otherwise `"latest"`.
 
-### Subagent 3 — Package, Deploy, README (parallel with subagent 2)
+**`.env.example`**: all env vars grouped by purpose with comments.
 
-**`package.json`**:
-- name, version, description from `agent-forge.json`
-- `"type": "module"`
-- Scripts: appropriate for the primary interface (Next.js or standalone) + add-on scripts
-- Dependencies: `ai`, `zod`, `bash-tool` (always) + model provider SDK + interface packages + MCP (`@ai-sdk/mcp`) + state + only what's needed
-- devDependencies: `typescript`, `tsx`, `@types/node` + React types + Tailwind (if web chat)
-- Look up current versions if docs tools available; otherwise use `"latest"`
+**Deployment config** (if stage 7): Vercel, Docker, or skip.
 
-**`.env.example`**: all env vars from stage 7, grouped by purpose with comments
+**`README.md`**: what the agent does, prerequisites, quick start, interfaces, env vars, MCP setup,
+deployment.
 
-**Deployment config** (if stage 7): Vercel (`vercel.json` only if needed for extended timeout), Docker (Dockerfile), or skip
+▶ Next: `verify_build`
+</step>
 
-**`README.md`**: what the agent does, prerequisites, quick start, interfaces, env vars table, MCP server setup instructions, deployment
+<step name="verify_build">
+**Install, type-check, and present the finished project.**
 
-### Post-Build Steps
+### Install
 
-**Install** — `npm install` in the project directory.
+Run `npm install` in the project directory.
 
-**Smoke test** — `npx tsc --noEmit`. Fix errors, re-run until clean. If errors persist after 2 attempts, show them to the user.
+### Smoke test
 
-**Summary** — Show file tree, key files, how to run each interface. Delete `agent-forge.json`.
+Run `npx tsc --noEmit`. Fix errors, re-run until clean. If errors persist after 2 attempts,
+show them to the user.
 
----
+### Summary
 
-## Response Style
+Show file tree, key files, and how to run each interface. Delete `agent-forge.json`.
 
-- No congratulatory filler.
-- Present options with reasoning. Let the recommendation speak for itself.
-- After user picks, confirm in one sentence, update state, move on.
-- During building, show progress concisely.
-- Keep responses under 500 characters outside of tables, code blocks, and system prompt drafts.
+▶ Done.
+</step>
+
+</process>
+
+<guardrails>
+- NEVER combine stages 1-3 into a single message — present one stage per response, wait for confirmation
+- NEVER infer approval — wait for explicit user confirmation before advancing
+- NEVER hardcode model identifiers (e.g., `claude-sonnet-4.5`, `gpt-4.1`) — look up current recommended models at build time
+- NEVER require MCP tools for a skill to function — optional enhancement only
+- NEVER `throw` on missing config in bespoke tools — return structured `not_configured` response
+- NEVER leave bare TODOs in generated code — implementations must be complete and working
+- Stages 4-7 MAY be batched if the user says "just pick sensible defaults" or "proceed"
+- The `agent-forge.json` file MUST be deleted after the final build
+- No congratulatory filler in responses
+- Present options with reasoning — let the recommendation speak for itself
+- After user picks, confirm in one sentence, update state, move on
+- Keep responses under 500 characters outside of tables, code blocks, and system prompt drafts
+</guardrails>
 
 ## Scope Boundaries
 
-**In scope:** Single-agent projects. System prompt drafting. bash-tool + MCP + bespoke tools. Model selection. Interfaces. Lightweight deployment.
+| In scope | Out of scope (mention if relevant, do not implement) |
+|----------|------------------------------------------------------|
+| Single-agent projects | RAG pipelines |
+| System prompt drafting | Multi-agent orchestration |
+| bash-tool + MCP + bespoke tools | Training/fine-tuning |
+| Model selection | CI/CD pipelines, Kubernetes |
+| Interfaces | Auth for the agent's interface |
+| Lightweight deployment | Monitoring and observability |
 
-**Out of scope (mention if relevant, don't implement):** RAG pipelines. Multi-agent orchestration. Training/fine-tuning. CI/CD pipelines, Kubernetes. Auth for the agent's interface. Monitoring and observability.
+<success_criteria>
+- [ ] Purpose captured: system prompt drafted and confirmed by user
+- [ ] Interface chosen: primary + add-ons decided
+- [ ] Tools selected: MCP servers and bespoke tools (if any) specified
+- [ ] Stages 4-7 configured: model, durability, state, deployment
+- [ ] Design confirmed: summary table shown, user approved
+- [ ] Agent core generated: agent.ts, tools/, mcp.ts (if needed), tsconfig.json
+- [ ] Interface layer generated: all files per the chosen interface(s)
+- [ ] Package files generated: package.json, .env.example, README.md, deployment config
+- [ ] Type check passes: `npx tsc --noEmit` clean
+- [ ] `agent-forge.json` deleted after build
+</success_criteria>
