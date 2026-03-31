@@ -281,16 +281,28 @@ If the scaffold CLI fails, try these in order:
 <step name="wire_integrations">
 **Write the boilerplate that connects every integration to the rest of the stack.**
 
+Read `references/wiring-patterns.md` for the cross-integration connectivity patterns that
+make the output go beyond "import db, write a route."
+
 For each decided category, write config and glue files:
 
 1. **Write config & glue files** (Write tool) — ORM config + schema, auth middleware + provider
    wrapper, payment webhook handler, API client setup, etc.
 2. **Update package.json** (Edit tool) — add dependencies, devDependencies, scripts
+3. **Wire cross-cutting connections** — every integration should touch every other relevant
+   integration, not just coexist. Auth webhook → DB insert. Checkout → auth + DB user lookup.
+   Protected routes → subscription status from DB.
 
 The boilerplate must be **complete and connected** — not isolated examples, but wired into
 the scaffold's existing file structure. If you scaffolded Next.js and chose Drizzle + Postgres,
 the database config should export a `db` instance that the API routes import, not a standalone
 demo file.
+
+**Schema design:** Model relationships between integrations with separate tables and foreign
+keys. A `subscriptions` table with `userId` FK is better than subscription columns on the
+`users` table.
+
+After wiring, run the completeness checklist from `references/wiring-patterns.md`.
 
 Use current API patterns — if context7 or documentation MCP tools are available, look up the
 latest docs for libraries being integrated.
@@ -306,6 +318,9 @@ Do not create `.env`, `.env.local`, or `.env.example` files.
 | Production | Env vars belong on the deployment platform. List them in README and `setup_deployment`. |
 
 ### Docker Compose (if chosen)
+
+Read `references/docker-compose-templates.md` for stable compose patterns. Use the template
+that matches the stack (Next.js + Postgres, Vite + Express + Postgres, etc.) and adapt.
 
 Generate `docker-compose.yml` at the project root with:
 
@@ -378,6 +393,7 @@ Delete `.stack-decisions.json` — it's served its purpose.
 
 <guardrails>
 - NEVER create `.env`, `.env.local`, or `.env.example` files — use Docker Compose environment blocks or tell the user to set vars manually
+- NEVER mention `.env` files in the generated README or setup instructions — if Docker Compose is chosen, the README should say "export keys in your shell, then docker compose up" not "copy .env.example"
 - NEVER scaffold for Python, Go, or other non-JS/TS stacks — this skill is scoped to the JS/TS ecosystem
 - NEVER invalidate stages that come *before* the changed stage in the stage order
 - NEVER cascade invalidation unless the downstream decision's rationale genuinely depended on the old value
