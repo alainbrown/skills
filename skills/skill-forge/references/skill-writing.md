@@ -13,6 +13,111 @@ The `description` field determines when the skill triggers. Under-triggering (sk
 Bad: `description: Helps users with testing`
 Good: `description: Generate Playwright E2E test specs for user journeys — login flows, checkout funnels, onboarding wizards, CRUD sequences. Use when the user says "write E2E tests", "test the login flow", "add Playwright tests", "I need browser tests", or describes a multi-step flow they want verified.`
 
+## Structure: The XML Skeleton
+
+Every SKILL.md uses the same structural tags. The agent parses these as semantic boundaries — they
+define where steps begin and end, what must never happen, and when the workflow is complete.
+
+### Required tags
+
+```xml
+<purpose>
+  2-3 sentences: what this skill does and why it exists.
+</purpose>
+
+<process>
+  <step name="step_name">
+    Markdown content describing what happens in this step.
+  </step>
+
+  <step name="another_step">
+    Another self-contained step.
+  </step>
+</process>
+
+<success_criteria>
+  - [ ] Criterion 1
+  - [ ] Criterion 2
+</success_criteria>
+```
+
+### Optional tags
+
+| Tag | When to use |
+|-----|-------------|
+| `<core_principle>` | A design principle or pattern that applies across all steps (e.g., durable state) |
+| `<guardrails>` | Hard constraints — "never" rules, safety boundaries, behavioral limits |
+| `<!-- comments -->` | Section separators for visual grouping of related steps |
+
+### Step naming
+
+Steps are named, not numbered. Names should be short, descriptive, and verb-oriented:
+
+| Good | Bad |
+|------|-----|
+| `route`, `scaffold`, `design`, `grade` | `step_1`, `phase_2`, `do_the_thing` |
+| `capture_intent`, `run_evals`, `cleanup` | `first_step`, `main_step`, `last_step` |
+
+### Step anatomy
+
+Each step should be self-contained — understandable without reading other steps. Follow this pattern:
+
+1. **One bold sentence saying what this step accomplishes** — the agent reads this to decide if it should enter the step
+2. **Substeps with `###` headers** if the step has distinct parts
+3. **Decision points called out** — use AskUserQuestion or decision tables
+4. **State update** — what to persist after the step completes (if using durable state)
+5. **Transition** — how the agent knows this step is done and what comes next
+
+Avoid steps that have no clear end condition. "Research the topic" never ends.
+"Research the topic, summarize in 3-5 bullets, and confirm with the user" has a clear exit.
+
+## Presenting Options: AskUserQuestion
+
+When the skill needs user input, use the AskUserQuestion pattern — not freeform blockquotes.
+This gives the agent a structured interaction to execute rather than an ambiguous prompt.
+
+```markdown
+Ask via AskUserQuestion:
+- header: "Short Label"
+- question: "Natural language question to the user"
+- options:
+  - "Action verb first" — brief explanation
+  - "Another option" — brief explanation
+  - "Let me explain" — freeform input
+```
+
+**Rules:**
+- Header: 12 characters max
+- Question: natural language, one sentence
+- Options: 2-5 choices, each starting with an action verb
+- Always include "Let me explain" as a freeform escape hatch when the options might not cover the user's intent
+- Use when the skill needs a decision — not for every interaction
+
+**When NOT to use AskUserQuestion:**
+- Open-ended creative questions ("What should this skill help the agent do?")
+- Questions where the answer space is too large for predefined options
+- Follow-up questions that depend heavily on the prior answer
+
+For these, ask one question at a time as plain text.
+
+## Decision Tables
+
+Use tables for routing logic, conditional behavior, and categorization. Tables are easier to parse
+than nested if/else prose.
+
+```markdown
+| If the user says... | Route to | Why |
+|---------------------|----------|-----|
+| "create a skill" | `scaffold` | Needs plugin setup first |
+| "improve this skill" | `assess` | Re-eval path |
+```
+
+Good uses for tables:
+- Routing decisions (intent → step)
+- Conditional actions (state → behavior)
+- Categorization (input → category)
+- Stable vs. unstable knowledge
+
 ## Instruction Density: Rigid vs. Flexible
 
 Every instruction exists on a spectrum:
@@ -38,14 +143,14 @@ Every instruction exists on a spectrum:
 ## Common Anti-Patterns
 
 ### Wall of text
-A phase that's 50+ lines of unbroken prose. The agent skims, misses steps, or follows the first instruction and ignores the rest.
+A step that's 50+ lines of unbroken prose. The agent skims, misses substeps, or follows the first instruction and ignores the rest.
 
-**Fix:** Break into named subsections with `###` headers. Each section should be 5-15 lines. If a section is longer, it probably contains multiple steps that should be separate sections.
+**Fix:** Break into named subsections with `###` headers. Each section should be 5-15 lines. If a section is longer, it probably contains multiple steps that should be separate.
 
 ### Instructions that assume context
-"Use the pattern from earlier" or "Apply the same approach as Phase 1." After context compression, earlier phases are gone. Every phase must be self-contained or reference a state file / reference file.
+"Use the pattern from earlier" or "Apply the same approach as the first step." After context compression, earlier steps are gone. Every step must be self-contained or reference a state file / reference file.
 
-**Fix:** If a later phase needs decisions from an earlier phase, those decisions must be in the state file. If a later phase needs patterns from an earlier phase, those patterns must be in a reference file.
+**Fix:** If a later step needs decisions from an earlier step, those decisions must be in the state file. If a later step needs patterns from an earlier step, those patterns must be in a reference file.
 
 ### Overly prescriptive examples
 Showing a complete 50-line code block as "the template to follow" makes the output rigid and fragile. The agent copies the template even when the user's situation doesn't match.
@@ -55,7 +160,7 @@ Showing a complete 50-line code block as "the template to follow" makes the outp
 ### Missing escape hatches
 Every skill encounters situations it wasn't designed for. If the skill has no guidance for edge cases, the agent either halts or improvises poorly.
 
-**Fix:** Include a brief "out of scope" section that tells the agent what to do when it hits something unexpected: "If the user's request doesn't fit these categories, say so and explain what the skill handles. Don't force-fit."
+**Fix:** Add a note in `<guardrails>` or the relevant step telling the agent what to do when it hits something unexpected: "If the user's request doesn't fit these categories, say so and explain what the skill handles. Don't force-fit."
 
 ### Filler instructions
 "Make sure to think carefully about the best approach" or "Take time to consider all options." These waste tokens and the agent ignores them.
@@ -65,11 +170,10 @@ Every skill encounters situations it wasn't designed for. If the skill has no gu
 ## SKILL.md vs. References: When to Split
 
 **Keep in SKILL.md:**
-- Workflow phases and transitions (what happens in what order)
-- Decision logic (when to do X vs Y)
-- User-facing prompts and questions
+- The `<process>` flow — steps, transitions, decision points
+- User-facing prompts and AskUserQuestion patterns
+- `<guardrails>` and `<success_criteria>`
 - Tone and style guidance
-- Phase-level instructions (what the agent does in each phase)
 
 **Move to references:**
 - Templates and schemas (JSON formats, directory layouts, code patterns)
@@ -77,16 +181,53 @@ Every skill encounters situations it wasn't designed for. If the skill has no gu
 - Domain knowledge (API details, library patterns, platform specifics)
 - Detailed examples that support a brief instruction in the SKILL.md
 
-**The test:** If removing the content from SKILL.md would break the workflow (agent wouldn't know what phase comes next, or what question to ask), it stays. If removing it would reduce quality but the workflow still makes sense, it's reference material.
+**The test:** If removing the content from SKILL.md would break the workflow (agent wouldn't know what step comes next, or what question to ask), it stays. If removing it would reduce quality but the workflow still makes sense, it's reference material.
 
-## Structuring Phases
+## Template
 
-Each phase should follow this pattern:
+Minimal SKILL.md skeleton:
 
-1. **One sentence saying what this phase accomplishes** — the agent reads this to decide if it should enter the phase
-2. **Substeps with clear names** — `### Step 1: Understand the agent` not `### Step 1`
-3. **Decision points called out** — "Ask the user: ..." or "If X, do Y. If Z, do W."
-4. **State update** — what to persist after the phase completes (if using durable state)
-5. **Transition** — how the agent knows this phase is done and what comes next
+```markdown
+---
+name: skill-name
+description: >
+  What it does and when to trigger — be specific and pushy about trigger conditions.
+  List phrases: "do X", "make Y", "I need Z".
+---
 
-Avoid phases that have no clear end condition. "Research the topic" is a phase that never ends. "Research the topic, then summarize what you found in 3-5 bullet points and confirm with the user" has a clear exit.
+# Skill Name
+
+<purpose>
+What this skill does and why it exists. 2-3 sentences.
+</purpose>
+
+<process>
+
+<step name="first_step">
+**What this step accomplishes.**
+
+Details, substeps, decision points.
+</step>
+
+<step name="second_step">
+**What this step accomplishes.**
+
+Details, substeps, decision points.
+</step>
+
+</process>
+
+<guardrails>
+- NEVER do X
+- NEVER do Y
+- Always do Z when condition applies
+</guardrails>
+
+<success_criteria>
+- [ ] First thing that must be true when done
+- [ ] Second thing that must be true when done
+</success_criteria>
+```
+
+Keep the SKILL.md under 500 lines. Use reference files in a `references/` subdirectory for
+templates, schemas, and conditional content.

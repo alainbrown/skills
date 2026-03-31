@@ -12,21 +12,29 @@ description: >
   "re-eval train", "this skill could be better", or "how is X holding up".
 ---
 
-# Skill Forge — Build Publishable Agent Skills
+# Skill Forge
 
-You help users create agent skills that are structured, tested, and ready to share. You handle everything from plugin scaffolding to eval-backed READMEs.
+<purpose>
+Build and improve agent skills that are structured, tested, and ready to share. Handles everything
+from plugin scaffolding to eval-backed quality — producing skills users can install and immediately
+benefit from. Also re-evaluates and iterates existing skills against fresh criteria.
+</purpose>
 
-## Forge State
+<core_principle>
+**Durable state via `.forge-state.json`.** This file survives context compression and ensures nothing
+is lost over the long conversations that skill-forging involves.
 
-Persist progress to `.forge-state.json` in the working directory. This file is the durable source of truth — it survives context compression and ensures nothing is lost over the long conversations that skill-forging typically involves.
+- **Write after every significant change.** After any step completes, decision is made, or eval
+  iteration finishes, update the state file.
+- **Read before each step.** Before starting any step, read `.forge-state.json` to refresh context —
+  especially important after context compression.
+- **Clean up when done.** Delete `.forge-state.json` after the final commit.
 
-**Write after every significant change.** After any phase completes, decision is made, or eval iteration finishes, update the state. Include: `skillName`, `skillDir`, `phase`, `iteration`, `pluginExists`, `repoReadmeExists`, a `design` object (intent, trigger examples, confirmed status), an `evals` object (test cases, last result, feedback), and a `decisions` object (key choices made, skipped phases). Adapt the schema to the specific skill.
-
-**Read before each phase.** Before starting any phase, read `.forge-state.json` to refresh your understanding — especially important after context compression.
-
-**Clean up when done.** Delete `.forge-state.json` after the final commit — it's served its purpose.
-
----
+Include: `skillName`, `skillDir`, `phase`, `iteration`, `pluginExists`, `repoReadmeExists`,
+a `design` object (intent, trigger examples, confirmed status), an `evals` object (test cases,
+last result, feedback), and a `decisions` object (key choices made, skipped steps). Adapt the
+schema to the specific skill.
+</core_principle>
 
 ## Workflow Overview
 
@@ -34,92 +42,135 @@ Persist progress to `.forge-state.json` in the working directory. This file is t
 User wants to create a skill          User wants to improve a skill
        ↓                                        ↓
   ┌──────────────────────┐            ┌──────────────────────┐
-  │ 1. SCAFFOLD          │            │ RE-EVAL: ASSESS      │  Read skill, motivation, prior results
+  │ SCAFFOLD             │            │ ASSESS               │  Read skill, motivation, prior results
   └──────┬───────────────┘            └──────┬───────────────┘
          ↓                                   ↓
   ┌──────────────────────┐            ┌──────────────────────┐
-  │ 2. DESIGN            │            │ RE-EVAL: RUBRIC      │  Reconstruct + revise eval criteria
+  │ DESIGN               │            │ RECONSTRUCT RUBRIC   │  Reconstruct + revise eval criteria
   └──────┬───────────────┘            └──────┬───────────────┘
          ↓                                   ↓
   ┌──────────────────────┐                   │
-  │ 3. TEST & ITERATE    │◄─────────────────-┘
+  │ TEST & ITERATE       │◄──────────────────┘
   └──────┬───────────────┘
          ↓
   ┌──────────────────────┐
-  │ 4. DOCUMENT          │  Generate / update skill README
+  │ DOCUMENT             │  Generate / update skill README
   └──────┬───────────────┘
          ↓
   ┌──────────────────────┐
-  │ 5. CLEAN UP          │  Workspace cleanup + optional commit
+  │ CLEAN UP             │  Workspace cleanup + optional commit
   └──────────────────────┘
 ```
 
----
+<process>
 
-## Re-evaluating an Existing Skill
+<step name="route">
+**Determine the workflow path.**
 
-When the user wants to improve a skill rather than create one — "improve scaffold", "re-eval train", "this skill could be better" — use this flow instead of Phases 1–2.
+Evaluate user intent against these routing rules:
 
-### Assess
+| If the user says... | Path | Entry step |
+|---------------------|------|------------|
+| "create a skill", "make a skill for X", "turn this into a skill", "build a plugin" | **Create** | `scaffold` |
+| "improve this skill", "re-eval train", "this skill could be better", "how is X holding up" | **Re-eval** | `assess` |
+| Ambiguous — could be either | Ask | — |
 
-Read the existing SKILL.md, references, and README. Look for prior eval results in the README (win rates, criteria, known gaps). Ask:
+If ambiguous, use AskUserQuestion:
+- header: "Which path?"
+- question: "Are you creating a new skill or improving an existing one?"
+- options:
+  - "Create new" — scaffold a new skill from scratch
+  - "Improve existing" — re-evaluate and iterate on an existing skill
 
-> "What's motivating the re-eval? New learnings from using it, behavior that's off, or just a periodic check?"
+### Mode selection
+
+After determining the path, ask via AskUserQuestion:
+- header: "Mode?"
+- question: "How much control do you want over the process?"
+- options:
+  - "Interactive" — step-by-step, full questions, review at each checkpoint
+  - "Auto" — use recommended defaults, propose once, confirm once
+
+Store the mode in `.forge-state.json`. In auto mode: skip optional questions, use sensible
+defaults, batch confirmations. In interactive mode: pause at every checkpoint, ask every
+optional question, present alternatives.
+
+▶ Next: `scaffold` (create) or `assess` (re-eval)
+</step>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- RE-EVAL PATH (existing skills only)        -->
+<!-- ═══════════════════════════════════════════ -->
+
+<step name="assess">
+**Understand what needs improving.**
+
+Read the existing SKILL.md, references, and README. Look for prior eval results in the README
+(win rates, criteria, known gaps).
+
+Ask via AskUserQuestion:
+- header: "Motivation?"
+- question: "What's motivating the re-eval?"
+- options:
+  - "New learnings" — behavior I've seen while using it
+  - "Something's off" — specific behavior that needs fixing
+  - "Periodic check" — just want to see how it's holding up
+  - "Let me explain" — freeform description
 
 The answer determines scope — targeted fix (one criterion) vs. broad re-evaluation (full rubric).
 
-### Reconstruct the rubric
+▶ Next: `reconstruct_rubric`
+</step>
 
-Phase 5 deletes eval artifacts, so prior rubrics won't exist on disk. Reconstruct from the README:
+<step name="reconstruct_rubric">
+**Rebuild the evaluation rubric from prior results.**
 
-1. **Find the criteria.** The README's "Where the skill adds value" and "Where the baseline holds up" sections describe what the skill was graded on, but in prose — not as named criteria. Convert each distinct advantage or gap into a criterion with a name and description. For example, "baseline never security-hardens tools" becomes `{ "name": "security-hardening", "description": "Tools include path traversal protection, timeouts, size limits" }`. If no prior eval sections exist, derive criteria from the README's Features and Edge Cases sections, plus the SKILL.md content.
-2. **Recover prior scores.** The README's eval results table has win/tie/loss counts per eval. Note the overall win rate and per-eval breakdown so you can compare after the new run.
-3. **Revise for this re-eval.** Keep criteria that still matter, add new ones based on the user's motivation (e.g., "reference-utilization" if testing structural changes), drop any that are no longer relevant.
+The `cleanup` step deletes eval artifacts, so prior rubrics won't exist on disk. Reconstruct
+from the README:
+
+1. **Find the criteria.** The README's "Where the skill adds value" and "Where the baseline holds up"
+   sections describe what the skill was graded on, but in prose. Convert each distinct advantage or
+   gap into a criterion with a name and description. Example: "baseline never security-hardens tools"
+   becomes `{ "name": "security-hardening", "description": "Tools include path traversal protection,
+   timeouts, size limits" }`. If no prior eval sections exist, derive criteria from the README's
+   Features and Edge Cases sections, plus the SKILL.md content.
+
+2. **Recover prior scores.** The README's eval results table has win/tie/loss counts per eval. Note
+   the overall win rate and per-eval breakdown for comparison after the new run.
+
+3. **Revise for this re-eval.** Keep criteria that still matter, add new ones based on the user's
+   motivation (e.g., "reference-utilization" if testing structural changes), drop any that are no
+   longer relevant.
+
 4. **Save to `evals/rubric.json`** (schema in `references/eval-workflow.md`).
 
 Share the updated rubric with the user before proceeding.
 
-### Enter Phase 3
+▶ Next: `create_tests`
+</step>
 
-Run evals as normal (Phase 3). After grading, compare against the prior README results:
+<!-- ═══════════════════════════════════════════ -->
+<!-- CREATE PATH                                -->
+<!-- ═══════════════════════════════════════════ -->
 
-> "Prior eval: 78% skill wins. This eval: 82%. Improved on [X]. Regressed on [Y]. New criteria [Z] scores well."
+<step name="scaffold">
+**Set up the plugin structure. Only create what's missing — never overwrite.**
 
-If the README has no prior results, treat this as a first eval — no comparison, just baseline.
+### Plugin directory
 
-### Finish
+Check if `.claude-plugin/` exists. If not, use AskUserQuestion:
+- header: "Plugin setup"
+- question: "This repo isn't set up as a skill plugin yet. Create the plugin structure?"
+- options:
+  - "Yes" — create .claude-plugin/ with marketplace metadata
+  - "Skip" — I'll set it up later
 
-After iteration stabilizes, update the README with fresh results (Phase 4) and clean up (Phase 5).
-
----
-
-## Phase 1: Scaffold
-
-Before creating a skill, make sure the repo is set up as a plugin. Check for existing structure and only create what's missing — never overwrite.
-
-### Plugin structure
-
-Check if `.claude-plugin/` exists. If not:
-
-> "This repo isn't set up as a skill plugin yet. Want me to create the plugin structure? I'll add a `.claude-plugin/` folder with the marketplace metadata needed to make your skills installable."
-
-If the user agrees, create:
-
-```
-.claude-plugin/
-└── marketplace.json
-```
-
-Try `git config user.name` for the owner and parse the repo name from `git remote get-url origin`. If not available, ask.
-
-**marketplace.json:**
+If yes, create `.claude-plugin/marketplace.json`:
 
 ```json
 {
   "name": "<owner>-<repo-name>",
-  "owner": {
-    "name": "<owner>"
-  },
+  "owner": { "name": "<owner>" },
   "metadata": {
     "description": "<ask user for a one-line description>",
     "version": "1.0.0"
@@ -129,54 +180,43 @@ Try `git config user.name` for the owner and parse the repo name from `git remot
       "name": "<skill-name>",
       "description": "<skill description from SKILL.md frontmatter>",
       "source": "./",
-      "skills": [
-        "./skills/<skill-name>"
-      ]
+      "skills": ["./skills/<skill-name>"]
     }
   ]
 }
 ```
 
-Each skill gets its own entry in the `plugins` array. If `marketplace.json` already exists, add a new plugin entry for the new skill rather than overwriting.
+Try `git config user.name` for the owner and parse repo name from `git remote get-url origin`.
+If not available, ask. If `marketplace.json` already exists, add a new plugin entry.
 
 ### Repo README
 
-Check if a `README.md` exists at the repo root.
-
-**If no README exists**, generate one with: repo name, description, what skills are (markdown instruction files for AI coding agents), install instructions, usage examples, and how skills work (loaded into context, matched to requests, guide the agent).
-
-**If a README already exists**, ask:
-
-> "Your repo already has a README. Want me to add skill install and usage instructions to it?"
-
-If yes, append a section with the install/usage block. If no, skip.
+| State | Action |
+|-------|--------|
+| No README exists | Generate one: repo name, description, what skills are, install instructions, usage examples |
+| README exists | Ask: "Want me to add skill install and usage instructions to your existing README?" |
 
 ### .gitignore
 
-Check if `.gitignore` exists and whether it includes workspace directories. If not, suggest adding:
+Check if `.gitignore` includes workspace directories. If not, suggest adding `*-workspace/` to
+prevent eval workspaces from being committed.
 
-```
-*-workspace/
-```
+▶ Next: `design`
+</step>
 
-This prevents eval workspaces from being committed accidentally.
-
----
-
-## Phase 2: Design the Skill
-
-This is the creative core — understand what the user wants and draft the SKILL.md.
+<step name="design">
+**Understand intent and draft the SKILL.md. This is the creative core.**
 
 ### Capture intent
 
-Start by understanding what the user wants. There are two common entry points:
+Two entry points:
 
-**"Turn this into a skill"** — The current conversation already contains a workflow. Extract what you can from context before asking questions: the tools used, the sequence of steps, corrections the user made, input/output formats observed. Summarize what you extracted and confirm with the user before proceeding. This saves them from re-explaining what they just did.
-
-**"I want to make a skill for X"** — Starting from scratch. Ask questions to understand the intent.
+| Entry | Approach |
+|-------|----------|
+| "Turn this into a skill" | Extract from conversation context: tools used, step sequence, corrections made, I/O formats. Summarize and confirm before asking questions. |
+| "I want to make a skill for X" | Starting from scratch. Ask questions to understand. |
 
 Key questions (ask one at a time, not all at once):
-
 1. What should this skill help the agent do?
 2. When should it trigger? What would a user say?
 3. What's the expected output or behavior?
@@ -184,96 +224,114 @@ Key questions (ask one at a time, not all at once):
 
 ### Research
 
-Before drafting, gather domain knowledge so you're not relying solely on the user to explain everything.
+Before drafting, gather domain knowledge:
 
-- **Similar skills in the repo:** Read other skills' SKILL.md files to understand the conventions, depth, and patterns already in use. Note what works and borrow structural patterns.
-- **MCP tools:** If context7 or similar documentation tools are available, look up APIs, libraries, or frameworks the skill will reference. Extract the patterns the skill needs to teach — don't just note that docs exist.
-- **The user's conversation history:** If this is a "turn this into a skill" request, the conversation itself is the richest source. Extract the exact tool calls, decision points, corrections, and output formats observed.
+- **Similar skills in the repo:** Read other SKILL.md files for conventions, depth, and patterns.
+- **MCP tools:** If context7 or similar docs tools are available, look up APIs and frameworks
+  the skill references. Extract the patterns the skill needs to teach.
+- **Conversation history:** For "turn this into a skill" requests, extract exact tool calls,
+  decision points, corrections, and output formats.
 
-Synthesize research into concrete inputs for the SKILL.md: which phases does the skill need, what decisions does the user make, what are the common edge cases, what output format works.
+Synthesize into concrete inputs for the SKILL.md: phases needed, user decisions, common edge
+cases, output format.
+
+### Propose structure
+
+Before writing, present a structured proposal for the user to approve:
+
+```
+Proposed SKILL.md:
+  Name:        <skill-name>
+  Steps:       <step-1> → <step-2> → <step-3> → ...
+  References:  <count> (<list of reference files and what each contains>)
+  State file:  yes/no (<rationale>)
+  Interactive:  yes/no
+  Est. size:   ~<N> lines
+
+Key decisions the skill will guide:
+  1. <decision point 1>
+  2. <decision point 2>
+  ...
+```
+
+In auto mode, present and proceed unless the user objects. In interactive mode, wait for
+explicit approval before writing.
 
 ### Write the SKILL.md
 
-Create `skills/<skill-name>/SKILL.md`. Read `references/skill-writing.md` for detailed guidance on frontmatter trigger descriptions, instruction density (rigid vs. flexible), common anti-patterns, when to split content into references, and how to structure phases.
-
-**Frontmatter:**
-```yaml
----
-name: <skill-name>
-description: >
-  <what it does and when to trigger — be specific and slightly "pushy"
-  about trigger conditions to combat under-triggering>
----
-```
+Create `skills/<skill-name>/SKILL.md`. Read `references/skill-writing.md` for detailed guidance
+on frontmatter triggers, instruction density, anti-patterns, reference splitting, and phase
+structure.
 
 **Key principles:**
-- Keep under 500 lines. Use reference files in a `references/` subdirectory for templates, schemas, and conditional content.
-- Be rigid about things that must be correct (security, output formats, sequences). Be flexible about things that depend on context (naming, architecture, recommendations).
+- Keep under 500 lines. Use `references/` for templates, schemas, and conditional content.
+- Be rigid about things that must be correct (security, output formats, sequences).
+- Be flexible about things that depend on context (naming, architecture, recommendations).
 - Explain *why* things matter — the agent responds better to reasoning than commands.
-- Structure with named phases that have clear entry conditions, substeps, and exit conditions.
+- Structure with named steps that have clear entry conditions, substeps, and exit conditions.
 - Include examples where behavior would be ambiguous without one.
 
 ### Durable state for multi-decision skills
 
-If the skill you're designing involves a multi-phase workflow where the user makes decisions that build on each other (like picking a tech stack, configuring options, or iterating on a design), add a durable state file pattern. This protects against context compression losing earlier decisions in long conversations.
+| Condition | Add state file? |
+|-----------|----------------|
+| 3+ phases with user decisions, later phases depend on earlier ones | Yes |
+| Short workflows or output files are the state | No |
+| Primarily conversational (coaching, Q&A) | No |
 
-**When to add it:**
-- The skill has 3+ phases with user decisions
-- Later phases depend on earlier decisions
-- Conversations are expected to be long enough for context compression
+If the pattern fits, add a section similar to this skill's own `.forge-state.json` — a JSON file
+written after decisions, read before phases, cleaned up when done.
 
-**When to skip it:**
-- Short workflows (a few exchanges)
-- The output files themselves are the state (e.g., generated code, test specs)
-- The skill is primarily conversational (coaching, Q&A)
+**Include a `context` field** for conversational nuance — intent, audience details, style
+preferences, future considerations. Especially valuable when subagents consume the state file.
 
-If the pattern fits, add a section similar to this skill's own "Forge State" — a JSON file written after decisions, read before phases, cleaned up when done. Adapt the schema to the skill's specific decisions.
-
-**Add a `context` field for conversational nuance.** Alongside structured decision fields, include a free-form `context` object that captures things the user said that don't fit the schema — intent, audience details, style preferences, future considerations. This is especially valuable when subagents consume the state file and need tonal or contextual awareness beyond the rigid fields.
-
-**Design the state as a subagent contract.** If the skill has a generation phase that uses subagents (see below), the state file is the only context those subagents receive. Every field a subagent needs must be in the schema — don't assume subagents can infer from conversation history.
+**Design the state as a subagent contract.** If the skill has a generation phase with subagents,
+the state file is the only context those subagents receive. Every field a subagent needs must be
+in the schema.
 
 ### Subagent strategy for generation phases
 
-If the skill has a design phase (interactive, conversational) followed by a generation phase (producing code, files, or artifacts), consider using subagents for the generation phase. The design phase stays in the main conversation where back-and-forth is natural. The generation phase delegates to subagents that receive only the state file + relevant reference files — no conversation history.
+If the skill has a design phase (interactive) followed by a generation phase (producing artifacts),
+consider subagents for generation. The design phase stays in the main conversation. The generation
+phase delegates to subagents that receive only the state file + relevant references.
 
-**Why this helps:** By the time generation starts, the context window is full of interview conversation — tentative ideas, rejected options, corrections. Subagents with clean, focused context produce more accurate output than the main conversation generating code inline.
+**Why:** By the time generation starts, the context window is full of interview conversation.
+Subagents with clean, focused context produce more accurate output.
 
 **Pattern:**
 - Each subagent gets the state file + 1-2 relevant reference files
-- Subagents run in parallel where their outputs don't depend on each other
-- Post-subagent verification stays in the main conversation (install, compile check, summary)
+- Subagents run in parallel where outputs don't depend on each other
+- Post-subagent verification stays in the main conversation
 
-### Guidance for code-generating skills
+### Code-generating skills
 
-If the skill being designed generates code (scaffolds projects, writes implementations, produces config files), the reference files need special attention. Library APIs change frequently — hardcoding exact code in references creates fragile skills that break when dependencies update.
-
-**Separate stable from unstable knowledge in references:**
+If the skill generates code, separate stable from unstable knowledge in references:
 
 | Stable (hardcode) | Unstable (delegate to LLM + docs) |
 |---|---|
 | Architecture patterns | API signatures and method names |
 | Decision logic (when to use X vs Y) | Package versions |
-| Tool/component shapes (name, schema, what it does) | Constructor arguments and config options |
-| Security requirements (timeouts, path validation) | Model identifiers |
-| Project structure (directory layouts) | Framework-specific boilerplate |
+| Tool/component shapes | Constructor arguments and config options |
+| Security requirements | Model identifiers |
+| Project structure | Framework-specific boilerplate |
 
-**For unstable patterns, add verification gates:**
-- Add "Known fragile patterns" sections to reference files listing which patterns change between library versions
-- Instruct the skill to suggest documentation tools (context7) at the start — "For the most accurate output, you can add context7. It's optional."
-- If docs tools are unavailable, flag uncertain patterns with `// TODO: verify` comments instead of guessing
-- The skill should never require MCP to function — it should work well without it and work better with it
+**For unstable patterns:**
+- Add "Known fragile patterns" sections to reference files
+- Instruct the skill to suggest documentation tools (context7) — optional, not required
+- If docs tools unavailable, flag uncertain patterns with `// TODO: verify`
+- The skill must never require MCP to function — work well without, work better with
 
-### Interactive browser UI pattern
+### Interactive browser UI
 
-After capturing intent, consider whether the skill would benefit from browser-based interaction (quizzes, forms, visual feedback, timers, drag-and-drop). Ask the user. If yes, read `references/interactive-runtime.md` for the full setup pattern — runtime files to copy, reference docs to generate, and how the server works.
+After capturing intent, consider whether the skill would benefit from browser-based interaction.
+Ask the user. If yes, read `references/interactive-runtime.md` for the full setup pattern.
 
 ### Skill anatomy
 
 ```
 skill-name/
 ├── SKILL.md          (required — the instructions)
-├── README.md         (generated in Phase 4)
+├── README.md         (generated in document step)
 ├── scripts/          (optional — runtime files for browser interaction)
 │   ├── interactive-server.mjs
 │   └── shell.html
@@ -282,52 +340,100 @@ skill-name/
     └── another-ref.md
 ```
 
----
+### Validate structure
 
-## Phase 3: Test & Iterate
+After writing the SKILL.md, run a quick structural check:
 
-After the draft, test it. The goal is to answer one question: **does this skill produce better outcomes than the LLM alone?**
+| Check | Pass condition |
+|-------|---------------|
+| Frontmatter | Has `name` and `description` fields |
+| Purpose | Contains `<purpose>` tag |
+| Process | Contains `<process>` with at least one `<step name="...">` |
+| Step naming | All steps have descriptive names (not `step_1`, `phase_2`) |
+| Success criteria | Contains `<success_criteria>` with at least 3 items |
+| Line count | Under 500 lines (excluding references) |
+| References exist | Every referenced file in `references/` exists on disk |
+| Guardrails | Contains `<guardrails>` if the skill has safety constraints |
 
-### Define success criteria
+If any check fails, fix it before proceeding. Report the results briefly:
 
-Before writing test cases, define what "better" means for this specific skill. Ask the user:
+```
+Validation: 8/8 passed
+  SKILL.md: 287 lines, 6 steps, 2 references
+```
 
-> "What should this skill do better than the baseline? For example: fewer questions before being productive, more consistent output structure, handles edge cases the LLM would miss, etc."
+▶ Next: `define_criteria`
+</step>
 
-Draft 3-6 success criteria — concrete, evaluable dimensions. Examples:
+<!-- ═══════════════════════════════════════════ -->
+<!-- TEST & ITERATE (both paths converge here)  -->
+<!-- ═══════════════════════════════════════════ -->
 
-- "Asks fewer clarifying questions before producing output"
-- "Output follows a consistent structure across different inputs"
-- "Handles [specific edge case] that the baseline would miss"
-- "Produces connected, runnable output (not isolated snippets)"
-- "Stays concise — no filler or congratulatory language"
+<step name="define_criteria">
+**Define what "better" means for this skill.**
 
-Save to `evals/rubric.json` (schema in `references/eval-workflow.md`). Share with the user for review before proceeding.
+Ask via AskUserQuestion:
+- header: "Success?"
+- question: "What should this skill do better than the baseline? Pick the dimensions that matter."
+- options:
+  - "Fewer questions" — gets productive faster
+  - "Consistent structure" — output follows a reliable format
+  - "Edge case handling" — catches things the LLM would miss
+  - "Connected output" — produces runnable code, not isolated snippets
+  - "Conciseness" — no filler or congratulatory language
+  - "Let me explain" — custom criteria
 
-### Create test cases
+Draft 3-6 success criteria based on their answer. Save to `evals/rubric.json`
+(schema in `references/eval-workflow.md`). Share with the user for review before proceeding.
 
-Come up with 2-4 realistic test prompts — things a real user would actually say. Include at least one edge case. Share them with the user for review. Save to `evals/evals.json` (schema in `references/eval-workflow.md`).
+**Skip this step for re-evals** — the rubric was already reconstructed in `reconstruct_rubric`.
 
-### Add interactive test cases (if applicable)
+▶ Next: `create_tests`
+</step>
 
-If the skill has browser interaction, add 1-2 test cases for browser mode. See `references/interactive-runtime.md` § "Interactive test cases" for the additional rubric criteria and eval prompt templates.
+<step name="create_tests">
+**Create realistic test cases.**
 
-### Run tests
+Come up with 2-4 realistic test prompts — things a real user would actually say. Include at
+least one edge case. Share with the user for review. Save to `evals/evals.json`
+(schema in `references/eval-workflow.md`).
+
+If the skill has browser interaction, add 1-2 test cases for browser mode. See
+`references/interactive-runtime.md` § "Interactive test cases" for additional rubric criteria
+and eval prompt templates.
+
+▶ Next: `run_evals`
+</step>
+
+<step name="run_evals">
+**Run with-skill vs. baseline comparisons.**
 
 For each test case, spawn two subagents in the same turn:
 
-1. **With-skill run** — provide the skill path, save outputs to `<skill-name>-workspace/iteration-<N>/<eval-name>/with_skill/outputs/`
+1. **With-skill run** — provide the skill path, save outputs to
+   `<skill-name>-workspace/iteration-<N>/<eval-name>/with_skill/outputs/`
 2. **Baseline run** — same prompt, no skill, save to `without_skill/outputs/`
 
-For interactive test cases, see `references/interactive-runtime.md` § "Eval agent prompt template" for the modified prompt.
+For interactive test cases, see `references/interactive-runtime.md` § "Eval agent prompt template"
+for the modified prompt.
 
-### Grade against the rubric
+▶ Next: `grade`
+</step>
 
-After all runs complete, read every output and grade each one independently against the rubric. For each eval, for each criterion, score both the with-skill and baseline outputs. Save `grading.json` per eval (schema in `references/eval-workflow.md`).
+<step name="grade">
+**Grade each output against the rubric.**
 
-### Synthesize results
+After all runs complete, read every output and grade each one independently. For each eval,
+for each criterion, score both the with-skill and baseline outputs. Save `grading.json` per eval
+(schema in `references/eval-workflow.md`).
 
-After grading all evals, aggregate the results into a summary table:
+▶ Next: `synthesize`
+</step>
+
+<step name="synthesize">
+**Aggregate results and recommend next action.**
+
+Build a summary table:
 
 | Eval | Skill Wins | Baseline Wins | Ties |
 |------|-----------|--------------|------|
@@ -335,113 +441,166 @@ After grading all evals, aggregate the results into a summary table:
 | eval-2 | 3/5 | 1/5 | 1/5 |
 | **Total** | **X/Y (Z%)** | ... | ... |
 
-Then answer the key question explicitly:
+Answer the key question explicitly:
 
-> "The skill wins Z% of criteria comparisons across N evals. The baseline already handles [these cases] well. The skill adds clear value for [these specific things]. **Recommendation: ship / iterate / reconsider.**"
+> "The skill wins Z% of criteria comparisons across N evals. The baseline already handles
+> [these cases] well. The skill adds clear value for [these specific things]."
 
-- **Ship** — skill wins >70% of criteria and the baseline loses on things that matter
-- **Iterate** — skill wins but has clear gaps to fix, or wins are marginal
-- **Reconsider** — skill doesn't meaningfully outperform the baseline; the LLM already does this well enough
+| Win Rate | Recommendation | Meaning |
+|----------|---------------|---------|
+| >70% and baseline loses on what matters | **Ship** | Skill provides clear value |
+| Wins but has clear gaps, or marginal wins | **Iterate** | Gaps to fix before shipping |
+| Doesn't meaningfully outperform baseline | **Reconsider** | LLM already does this well enough |
 
-**After presenting results, ask the user how to proceed.** The threshold is a guideline, not a rule — the user may ship at 65% if the gaps are all "baseline caught up," or iterate at 80% if they see a specific weakness.
+The threshold is a guideline, not a rule — the user may ship at 65% if gaps are all "baseline
+caught up," or iterate at 80% if they see a specific weakness.
 
-> "Results: Z%. Recommendation: [ship/iterate/reconsider]. I've identified N gaps — want me to diagnose and propose edits, or is this good enough to ship?"
+**For re-evals**, compare against prior README results:
 
-**If they say iterate (or "proceed", "improve it", "keep going"):** continue directly into diagnosis and proposed improvements. Deliver results + diagnosis + proposed edits, then pause for confirmation before applying.
+> "Prior eval: 78% skill wins. This eval: 82%. Improved on [X]. Regressed on [Y]."
 
-**If they say ship (or "that's fine", "good enough", "stop"):** move to Phase 4 (Document) and Phase 5 (Clean Up).
+Present results and ask via AskUserQuestion:
+- header: "Next?"
+- question: "Results: Z%. Recommendation: [ship/iterate/reconsider]. How to proceed?"
+- options:
+  - "Iterate" — diagnose and fix the gaps
+  - "Ship" — good enough, move to documentation
+  - "Let me explain" — specific feedback
 
-### Launch the review viewer
+### Review viewer
 
-After grading, launch the review viewer — it shows outputs side-by-side with rubric grades and lets the user agree/disagree per criterion. See `references/eval-workflow.md` § "Review Viewer" for CLI invocation, static fallback, and iteration comparison flags.
+After grading, launch the review viewer — shows outputs side-by-side with rubric grades.
+See `references/eval-workflow.md` § "Review Viewer" for CLI invocation, static fallback,
+and iteration comparison flags. Run as a background task so the conversation continues.
 
-### Iterate
+▶ Next: `iterate` (if iterate) or `document` (if ship)
+</step>
 
-When the recommendation is "iterate," flow directly from synthesis into diagnosis. Don't wait for the user to ask — they already told you to improve the skill.
+<step name="iterate">
+**Diagnose gaps and improve the skill.**
 
-**Step 1: Diagnose.** For each criterion the skill tied or lost on, re-read the with-skill and baseline outputs side by side. Answer:
+This step activates when the recommendation is "iterate" or the user says to improve.
+Flow directly from synthesis into diagnosis — don't wait for the user to ask.
+
+**1. Diagnose.** For each criterion the skill tied or lost on, re-read both outputs side by side:
 - What did the baseline do that matched or beat the skill?
-- What did the skill's output miss — a step it skipped, guidance it ignored, or a pattern it got wrong?
-- Is there a specific section of the SKILL.md or a reference file where better instructions would have changed the outcome?
+- What did the skill's output miss?
+- Which section of SKILL.md or reference file would have changed the outcome?
 
-**Step 2: Categorize.** Each gap falls into one of these buckets:
+**2. Categorize.** Each gap falls into one bucket:
 
 | Category | Example | Fix |
 |----------|---------|-----|
-| Missing instruction | Skill doesn't tell agent to check for X | Add the instruction to SKILL.md |
-| Unclear guidance | Agent read the instruction but interpreted it wrong | Rewrite with an example or more specificity |
-| Reference gap | Template is missing a pattern the agent needed | Update the reference file |
-| Structural issue | Agent missed a step because it's buried in a long section | Extract to a reference or restructure the phase |
-| Baseline caught up | LLM now does this well without guidance | Not fixable — consider dropping the criterion or accepting the tie |
+| Missing instruction | Skill doesn't tell agent to check for X | Add instruction to SKILL.md |
+| Unclear guidance | Agent misinterpreted the instruction | Rewrite with example or specificity |
+| Reference gap | Template missing a needed pattern | Update reference file |
+| Structural issue | Step buried in long section | Extract to reference or restructure |
+| Baseline caught up | LLM now does this well without guidance | Not fixable — accept the tie |
 
-**Step 3: Propose.** Draft specific edits — quote the current text, show the proposed replacement, explain why. Group by file (SKILL.md vs. specific references).
+**3. Propose.** Draft specific edits: quote current text, show proposed replacement, explain why.
+Group by file.
 
-**Step 4: Present the full package.** Show the user everything in one message: results table, diagnosis, categorized gaps, and proposed edits. Ask for confirmation or adjustments before applying.
+**4. Present.** Show everything in one message: results table, diagnosis, categorized gaps,
+proposed edits. Ask for confirmation before applying.
 
-**Step 5: Apply and rerun.** Make the edits, rerun the evals, compare against both the prior iteration and the original baseline. If the result is still "iterate," repeat the cycle automatically — diagnose, propose, present, apply. Continue until the result is "ship," the remaining gaps are all "baseline caught up," or the user says to stop.
+**5. Apply and rerun.** Make edits, rerun evals (`run_evals` → `grade` → `synthesize`), compare
+against both the prior iteration and the original baseline. If still "iterate," repeat
+automatically — diagnose, propose, present, apply. Continue until "ship," all remaining gaps
+are "baseline caught up," or the user says stop.
 
----
+▶ Next: `document` (when shipping) or `run_evals` (when iterating)
+</step>
 
-## Phase 4: Document
+<!-- ═══════════════════════════════════════════ -->
+<!-- FINALIZE                                   -->
+<!-- ═══════════════════════════════════════════ -->
 
-After the eval loop stabilizes, generate a README for the skill.
-
-### Generate skill README
+<step name="document">
+**Generate the skill README.**
 
 Create `skills/<skill-name>/README.md` with these sections:
 
 **Always include:**
-- **Title and one-line description** (from SKILL.md frontmatter)
-- **Usage** (example prompts that trigger the skill, from evals or conversation)
-- **What it does** (expanded description)
-- **Features** (extracted from SKILL.md section headers — each major phase or capability becomes a bullet)
+- Title and one-line description (from SKILL.md frontmatter)
+- Usage (example prompts that trigger the skill)
+- What it does (expanded description)
+- Features (from SKILL.md section headers — each major capability becomes a bullet)
 
 **Include if available:**
-- **Safety** (if the skill has safety checks, warnings, or guardrails)
-- **Edge cases handled** (if the skill explicitly handles edge cases)
+- Safety (if the skill has safety checks or guardrails)
+- Edge cases handled (if explicitly handled)
 
 **Include if evals were run:**
-- **Test scenarios** (from evals.json — prompt + description for each)
-- **Eval results** (skill win rate from rubric grading — overall percentage and per-eval breakdown)
-- **Where the baseline holds up / Where the skill adds value** (from criteria-level analysis)
+- Test scenarios (from evals.json — prompt + description)
+- Eval results (win rate — overall and per-eval breakdown)
+- Where the baseline holds up / Where the skill adds value (from criteria-level analysis)
 
-**Ask at the end:**
-> "Any design decisions worth documenting in the README? For example, why you chose a particular approach, or tradeoffs you considered."
+Ask via AskUserQuestion:
+- header: "Decisions?"
+- question: "Any design decisions worth documenting? Tradeoffs, approach choices, etc."
+- options:
+  - "Yes" — let me describe them
+  - "No" — skip this section
 
-If the user provides design decisions, add a **Design decisions** section.
+▶ Next: `cleanup`
+</step>
 
----
+<step name="cleanup">
+**Remove eval artifacts and commit.**
 
-## Phase 5: Clean Up
-
-### Workspace cleanup
-
-After everything is done, check the workspace size and ask:
+### Workspace
 
 ```bash
 du -sh <skill-name>-workspace/
 ```
 
-> "The eval workspace at `<path>` is <size>. Want to keep it for reference or delete it?"
+Use AskUserQuestion:
+- header: "Workspace"
+- question: "The eval workspace is <size>. Keep or delete?"
+- options:
+  - "Delete" — remove it
+  - "Keep" — keep for reference (ensure *-workspace/ is in .gitignore)
 
-If delete, remove it. If keep, make sure `*-workspace/` is in `.gitignore`.
+### Eval artifacts
 
-### Eval artifacts cleanup
+Delete `skills/<skill-name>/evals/`. The eval results are captured in the README — raw files
+don't need to ship.
 
-Also delete the `evals/` directory inside the skill folder (`skills/<skill-name>/evals/`). The eval test cases and metadata were used during development and aren't part of the published skill. The eval results are already captured in the README — the raw files don't need to ship.
+### Commit
 
-### Optional commit
+Use AskUserQuestion:
+- header: "Commit?"
+- question: "Ready to commit? I'll stage just the skill files — SKILL.md, README.md, and references."
+- options:
+  - "Yes" — commit with a descriptive message
+  - "Not yet" — I'll commit later
+</step>
 
-Offer to commit the skill files:
+</process>
 
-> "Ready to commit? I'll stage just the skill files — SKILL.md, README.md, and any references. Not the workspace or evals."
+<guardrails>
+- NEVER overwrite existing files during scaffold — only create what's missing
+- NEVER skip user confirmation before applying iteration edits
+- NEVER ship eval artifacts (evals/, *-workspace/) in the final commit
+- NEVER require MCP tools for a skill to function — optional enhancement only
+- If the skill has browser interaction, runtime files must be self-contained copies
+- The `.forge-state.json` file MUST be deleted after the final commit
+- Ask one question at a time during design — do not overwhelm with multiple questions
+- Adapt to the user — if they want to skip evals and just vibe, that's fine
+- Explain jargon briefly when first used: "eval" → "a test run," "rubric" → "grading checklist"
+- The steps are a guide, not a mandate — don't let process get in the way of creativity
+</guardrails>
 
-If they agree, stage only the skill directory contents (not the workspace or evals) and commit with a descriptive message.
-
----
-
-## Tone
-
-You're a collaborator, not a bureaucrat. The scaffolding and structure exist to make the skill publishable and professional, but don't let process get in the way of creativity. If the user wants to skip evals and just vibe, that's fine — adapt. The phases are a guide, not a mandate.
-
-For users unfamiliar with coding jargon, explain terms briefly when first used. "Assertions" → "checks that verify the skill did what we expected." "Eval" → "a test run." Match their level.
+<success_criteria>
+- [ ] Plugin structure exists (.claude-plugin/marketplace.json) or user explicitly skipped
+- [ ] SKILL.md written with proper frontmatter triggers and structured steps
+- [ ] Eval rubric defined and reviewed by user
+- [ ] Test cases created (2-4 realistic prompts including edge cases)
+- [ ] Evals run: with-skill vs. baseline comparisons complete
+- [ ] Results synthesized with clear ship/iterate/reconsider recommendation
+- [ ] Iteration applied if needed — gaps diagnosed, fixes proposed, evals rerun
+- [ ] README generated with eval results and feature documentation
+- [ ] Eval workspace and artifacts cleaned up
+- [ ] Skill files committed to git
+- [ ] `.forge-state.json` deleted
+</success_criteria>
