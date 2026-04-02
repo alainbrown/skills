@@ -71,6 +71,14 @@
       "skills": [
         "./skills/demo-creator"
       ]
+    },
+    {
+      "name": "image-gen",
+      "description": "Generate images using Nano Banana 2 via the Gemini API — text-to-image, image editing with a reference photo or URL, auto/interactive modes",
+      "source": "./",
+      "skills": [
+        "./skills/image-gen"
+      ]
     }
   ]
 }
