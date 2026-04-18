@@ -79,6 +79,14 @@
       "skills": [
         "./skills/image-gen"
       ]
+    },
+    {
+      "name": "tracer-bullet",
+      "description": "Ship thinnest possible end-to-end working code for a feature or new project — one happy path, real I/O, no gold-plating. Interviews I/O and constraints, proactively recommends design patterns / algorithms / data structures, writes working code, verifies it runs. Explicit slash-command only.",
+      "source": "./",
+      "skills": [
+        "./skills/tracer-bullet"
+      ]
     }
   ]
 }
