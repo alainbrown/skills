@@ -87,6 +87,14 @@
       "skills": [
         "./skills/tracer-bullet"
       ]
+    },
+    {
+      "name": "llm-wiki",
+      "description": "Implements Andrej Karpathy's LLM Wiki pattern — bootstrap, maintain, and query a persistent, interlinked markdown knowledge base that compounds across sessions. Handles init (schema + structure), ingest (file new sources into entity/concept pages with cross-references), query (synthesize from wiki pages, file valuable answers back), and lint (find contradictions, stale claims, orphans).",
+      "source": "./",
+      "skills": [
+        "./skills/llm-wiki"
+      ]
     }
   ]
 }
