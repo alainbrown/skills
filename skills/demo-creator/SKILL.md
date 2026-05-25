@@ -1,10 +1,12 @@
 ---
 name: demo-creator
 description: >
-  Create a narrated demo video of a project from its codebase using Remotion and ElevenLabs TTS.
-  Use when the user says "create a demo", "make a demo video", "generate a project demo",
-  "showcase this project", "make a video walkthrough", "demo this codebase", "record a demo",
-  or describes wanting a video that explains or showcases their project.
+  Create a demo of a project from its codebase using Remotion. Supports narrated MP4 (ElevenLabs TTS),
+  silent MP4, and animated GIF outputs — picked early so the rest of the flow adapts. Optionally renders
+  inside a Docker container with all dependencies pre-installed. Use when the user says "create a demo",
+  "make a demo video", "make a demo GIF", "generate a project demo", "showcase this project", "make a
+  video walkthrough", "demo this codebase", "record a demo", or describes wanting a video, GIF, or
+  visual walkthrough of their project.
 ---
 
 # Demo Creator
@@ -29,6 +31,15 @@ significant change. Read before each step. Delete after the final render or when
   "projectDir": "<path>",
   "remotionDir": "<path to generated remotion project>",
   "phase": "prerequisites|analyze|script|generate|review",
+  "outputFormat": "mp4-audio | gif | mp4-silent",
+  "machineCheck": {
+    "node": "present|missing",
+    "ffmpeg": "present|missing|not-needed",
+    "docker": "present|missing",
+    "dockerCompose": "present|missing",
+    "chromiumDeps": "present|missing|not-applicable"
+  },
+  "dockerMode": "render-only | full | skip",
   "demoStyle": "walkthrough|explainer|technical",
   "focusAreas": ["<feature or flow to highlight>"],
   "analysis": {
@@ -42,7 +53,9 @@ significant change. Read before each step. Delete after the final render or when
       {
         "id": 1,
         "title": "<scene title>",
-        "narration": "<voiceover text>",
+        "narration": "<voiceover text — audio modes only>",
+        "onScreenText": ["<text — GIF/silent modes>"],
+        "keyVisual": "<the one thing that must be seen — GIF/silent>",
         "visual": "<what appears on screen>",
         "durationEstimate": "<seconds>"
       }
@@ -53,8 +66,8 @@ significant change. Read before each step. Delete after the final render or when
   "creativeDirection": {
     "visualStyle": "<dark-technical | warm-modern | clean-minimal | bold-futuristic | custom>",
     "colorPalette": ["<hex colors derived from project or recommended>"],
-    "music": "<genre recommendation or 'none'>",
-    "tone": "<casual-technical | pitch-confident | academic-clear | friendly | custom>"
+    "music": "<genre recommendation, 'none', or null in GIF mode>",
+    "tone": "<casual-technical | pitch-confident | academic-clear | friendly | custom | null in GIF mode>"
   },
   "voice": {
     "voiceId": "<elevenlabs voice id>",
@@ -63,6 +76,7 @@ significant change. Read before each step. Delete after the final render or when
     "stability": 0.5,
     "similarityBoost": 0.75
   },
+  "// voice is null (whole field) when outputFormat != mp4-audio": "",
   "decisions": {}
 }
 ```
@@ -70,27 +84,106 @@ significant change. Read before each step. Delete after the final render or when
 <process>
 
 <step name="prerequisites">
-**Check that all dependencies are available before starting.**
+**Pick the output format, check the machine, and decide on Docker — in that order.**
 
-### Node.js
+The output format gates everything else: GIF mode skips the entire audio branch, Docker mode
+swaps the rendering commands. Decide these first so the rest of the flow stays coherent.
 
-Check `node --version`. If missing, stop and tell the user to install Node.js 18+.
+### 1. Output format
 
-### ElevenLabs API key
+Ask via AskUserQuestion:
+- header: "Output"
+- question: "What kind of demo do you want?"
+- options:
+  - "MP4 with audio" — narrated video with ElevenLabs voiceover, captions, music (60-180s typical)
+  - "Animated GIF" — silent, README-embed friendly, on-screen text carries the message (8-25s typical)
+  - "MP4 silent" — video with on-screen text only, no voiceover (good when audio plays awkwardly)
+  - "Let me explain" — describe what you need
+
+Record `outputFormat` in `.demo-state.json`. This drives branching in every subsequent step:
+
+| Format | Skips | Adds |
+|--------|-------|------|
+| `mp4-audio` | — | ElevenLabs key check, TTS, captions, voice/music recs |
+| `gif` | ElevenLabs check, TTS, captions, music/voice/tone | Silent script pattern, GIF render command |
+| `mp4-silent` | ElevenLabs check, TTS, captions, voice | Music optional, on-screen text emphasis |
+
+### 2. Machine check
+
+Run the dependency check appropriate to the chosen format. See `references/docker-render.md`
+§ "Machine check commands" for the exact bash. Run all checks in parallel and report results
+as a single table:
+
+```
+Machine check:
+  node           ✓ v22.10.0
+  docker         ✓ 27.3.1
+  docker compose ✓ v2.29.7
+  chromium deps  ✗ missing (Linux)
+  ffmpeg         — system binary not present (Remotion bundles its own, OK for basic render)
+
+Without chromium deps, host render will fail. Docker container avoids this.
+```
+
+Always run on every output format:
+- `node --version` (required for everything)
+- `docker --version` and `docker compose version` (informational — unlocks the Docker fallback)
+
+Conditional checks:
+- On Linux, check Chromium runtime libs via `ldconfig -p | grep libnss3`. Missing on Linux is
+  a render-blocker for both MP4 and GIF unless Docker is used.
+- `ffmpeg -version` — **informational only**. Remotion v4+ bundles its own ffmpeg. The system
+  binary matters only for advanced post-processing (e.g., GIF palette optimization).
+
+Record findings in `.demo-state.json.machineCheck`.
+
+### 3. Hard-block if unrecoverable
+
+If the user picked a format requiring render AND:
+- `node` is missing AND `docker` is missing, OR
+- on Linux: Chromium deps missing AND `docker` is missing
+
+…stop. Do not scaffold a project the user cannot render. Present the exact install commands
+(`apt install ...` or `brew install ...`) for the missing pieces, or suggest installing Docker
+and re-running. Do not proceed past this point until the user resolves it or aborts.
+
+### 4. Docker decision
+
+Offer Docker when the machine check found gaps OR the user prefers isolation. If the host
+is fully equipped and the user hasn't asked, skip this question — don't push Docker for its
+own sake (it adds ~2 min cold image build).
+
+Ask via AskUserQuestion:
+- header: "Docker"
+- question: "How should rendering run?"
+- options:
+  - "Render-only container (recommended)" — copy Dockerfile + compose to project; render via `docker compose run render`. Preview still uses host node.
+  - "Full dev+render container" — preview and render both in Docker. Best when no host node.
+  - "Skip Docker" — use host `npx remotion` only. Only choose if machine check showed all green.
+
+Record `dockerMode` in state. If `render-only` or `full`, the `generate` step copies templates
+from `references/docker/` to the project root. See `references/docker-render.md` for the
+copy commands and per-format render command overrides.
+
+### 5. ElevenLabs API key (audio mode only)
+
+Skip this entire section if `outputFormat != "mp4-audio"`.
 
 Check if `$ELEVENLABS_API_KEY` is set. If missing:
 
 Ask via AskUserQuestion:
 - header: "ElevenLabs"
-- question: "No ElevenLabs API key found. TTS narration requires one. How to proceed?"
+- question: "No ElevenLabs API key found. Audio mode requires one. How to proceed?"
 - options:
   - "I'll set it now" — pause while user runs `export ELEVENLABS_API_KEY=...`
-  - "Skip narration" — generate video without voiceover (silent with text overlays only)
+  - "Switch to GIF" — animated GIF, silent, no key needed
+  - "Switch to silent MP4" — MP4 with on-screen text only, no key needed
   - "Let me explain" — alternative setup
 
-If they skip narration, record `voice: null` in the state file and skip TTS in later steps.
+If the user switches format, update `outputFormat` in state and revisit the machine check
+section if the new format has different requirements.
 
-### Existing Remotion project
+### 6. Existing Remotion project
 
 Check if the current directory or a subdirectory already contains a Remotion project
 (`remotion.config.ts` or `@remotion/cli` in package.json).
@@ -104,13 +197,13 @@ Ask via AskUserQuestion:
 
 If no Remotion project exists, the generate step will scaffold one.
 
-### Codebase size
+### 7. Codebase size
 
 Run a quick assessment: count files, estimate total lines, identify languages. If the codebase
 is large (>500 files or >50k lines), present a summary and let the user choose focus areas
 early rather than trying to read everything.
 
-Write `.demo-state.json` with initial values.
+Write `.demo-state.json` with all decisions and findings.
 
 Next: `analyze`
 </step>
@@ -220,6 +313,18 @@ After analyzing the codebase, you have enough context to make informed recommend
 the video's look, feel, and sound. Present a creative direction package — don't just use the
 same defaults for every project.
 
+### Branch by output format
+
+| Format | Recommend |
+|--------|-----------|
+| `mp4-audio` | Visual style, palette, music, voice, tone — full package |
+| `mp4-silent` | Visual style, palette, music (optional). Skip voice, tone. |
+| `gif` | Visual style, palette only. Skip music, voice, tone. Set them to `null` in state. |
+
+For GIF and silent modes, do not recommend a voice or tone — there's no narration to apply
+them to. Setting them to `null` (not "skipped") prevents the script step from leaving
+narration placeholders.
+
 ### Derive recommendations from the analysis
 
 Consider these signals from the codebase:
@@ -293,11 +398,16 @@ Next: `script`
 <!-- ═══════════════════════════════════════════ -->
 
 <step name="script">
-**Write the narrated demo script — the blueprint for the video.**
+**Write the demo script — the blueprint for the video.**
+
+For GIF and silent modes, read `references/gif-output.md` § "Script differences" first —
+silent scripts have different structure and pacing than narrated ones.
 
 ### Draft the script
 
-Based on the demo style and focus areas, write a scene-by-scene script. Each scene needs:
+Based on the demo style, focus areas, and output format, write a scene-by-scene script.
+
+**Audio mode (`mp4-audio`)** — each scene needs:
 
 | Field | Description |
 |-------|-------------|
@@ -309,13 +419,29 @@ Based on the demo style and focus areas, write a scene-by-scene script. Each sce
 | `chars` | Character count (for TTS budget tracking) |
 | `transition` | Transition into this scene (fade, slide-left, etc.) — match the creative direction style |
 
+**Silent modes (`gif`, `mp4-silent`)** — each scene needs:
+
+| Field | Description |
+|-------|-------------|
+| `title` | Short scene name |
+| `onScreenText` | 1-2 short phrases (≤8 words each), timed with the action |
+| `keyVisual` | The single most important thing the viewer must see this scene |
+| `visual` | Full description of what's on screen |
+| `durationFrames` | Frame count at the source fps (typically 30) |
+| `transition` | Transition into this scene |
+
+Omit `narration` entirely in silent modes — don't leave it as an empty string.
+
 **Script guidelines by demo style:**
 
 - **Walkthrough:** Project intro → feature tour → how to get started.
 - **Explainer:** Problem → solution → supporting features → call to action.
 - **Technical:** Architecture → key flows → code patterns → what makes it interesting.
 
-Keep total duration between 60-180 seconds. Shorter is better.
+**Duration targets by format:**
+- `mp4-audio`: 60-180 seconds. Voice fills time; scenes 15-30s each.
+- `mp4-silent`: 30-90 seconds. No voice to fill time; scenes 4-10s each.
+- `gif`: 8-25 seconds. Every second matters; scenes 2-5s each.
 
 ### Present for review
 
@@ -339,10 +465,12 @@ Ask the user to review. They may want to:
 
 ### Validate production metrics
 
-After presenting the script, show a metrics summary:
+After presenting the script, show a metrics summary tuned to the output format.
+
+**Audio mode:**
 
 ```
-Script metrics:
+Script metrics (mp4-audio):
   Total duration:  ~105 seconds (within 60-180s target)
   Total words:     280 (at 150 wpm = 112s narration)
   TTS characters:  1,520 (within 10,000 free tier)
@@ -354,6 +482,20 @@ Script metrics:
 Flag issues: total over 180s, any scene under 8s or over 30s, TTS characters near the
 10,000 free tier limit.
 
+**GIF / silent modes:**
+
+```
+Script metrics (gif):
+  Total duration:  ~18 seconds (within 8-25s target)
+  Total frames:    540 at 30fps → 180 frames at every-nth=3 (~6fps GIF)
+  Scenes:          5
+  Avg scene:       ~3.6 seconds
+  Estimated size:  ~3-6 MB (rough — see references/gif-output.md § Size optimization)
+```
+
+Flag issues for GIF: total over 25s, any scene over 6s, source resolution above 1080×608.
+Flag for silent MP4: total over 90s, any scene over 10s.
+
 Iterate until the user approves. Set `script.approved: true` in the state file.
 
 Next: `generate`
@@ -362,10 +504,12 @@ Next: `generate`
 <!-- ═══════════════════════════════════════════ -->
 
 <step name="generate">
-**Build the Remotion project and generate TTS audio.**
+**Build the Remotion project, copy Docker templates if chosen, generate audio if applicable.**
 
 Read `references/remotion-patterns.md` for Remotion API patterns and project structure.
-Read `references/elevenlabs-tts.md` for TTS generation.
+Read `references/elevenlabs-tts.md` for TTS generation (audio mode only).
+Read `references/gif-output.md` for silent script → component patterns and the GIF render command (gif mode).
+Read `references/docker-render.md` § "Copying templates" if `dockerMode != "skip"`.
 
 ### Scaffold Remotion project (if needed)
 
@@ -388,15 +532,25 @@ Use the design tokens from `analysis.designTokens` in the state file. Export col
 and spacing as constants. All scene components import from `theme.ts` rather than hardcoding
 colors — this ensures the demo visually matches the project.
 
-### Generate TTS audio
+### Copy Docker templates (if chosen)
 
-If voice is configured (not skipped), generate MP3 files for each scene's narration.
-See `references/elevenlabs-tts.md` for the generation script pattern.
+If `dockerMode != "skip"`, copy the templates from `references/docker/` to the project root.
+The exact commands are in `references/docker-render.md` § "Copying templates into the
+generated project". After copying, create the `out/` directory and add the per-format render
+command notes to the project's own README.
+
+### Generate audio (audio mode only)
+
+Skip this entire section if `outputFormat != "mp4-audio"`.
+
+Generate MP3 files for each scene's narration. See `references/elevenlabs-tts.md` for the
+generation script pattern.
 
 - One MP3 per scene, saved to `public/audio/scene-<N>.mp3`
 - After generation, measure each audio file's duration to calculate exact frame counts
 
-If voice was skipped, estimate durations from narration word count (~150 words/minute).
+For non-audio formats (`gif`, `mp4-silent`), use the `durationFrames` value from the script
+directly — no audio measurement needed.
 
 ### Build scene components
 
@@ -407,19 +561,28 @@ For each scene in the script, create a React component in `src/scenes/`:
 - Text overlays: animated title and description text
 - Architecture: box-and-arrow layouts with animated connections
 - Apply entrance animations (fade, slide, spring) per `references/remotion-patterns.md`
+- In GIF / silent modes, build an `OnScreenText` component (sample in
+  `references/gif-output.md` § "Captions in GIF mode") and use it as the primary message
+  carrier in each scene — the on-screen text is the explanation, not a transcript
 
 ### Wire up the composition
 
 Create the main composition in `src/Root.tsx`:
 - Use `<TransitionSeries>` to sequence scenes with transitions between them
-- Add `<Audio>` components for each scene's voiceover (if generated)
-- Calculate total duration from audio durations + transition overlaps
-- Use `calculateMetadata` if durations are data-driven
+- Audio mode: add `<Audio>` components for each scene's voiceover. Calculate total duration
+  from audio durations + transition overlaps. Use `calculateMetadata` if data-driven.
+- Silent/GIF modes: no `<Audio>` components. Total duration is the sum of `durationFrames`
+  from the script.
+- For GIF, target a sensible composition size — 800×450 or 720×405 keeps file size in check.
+  See `references/gif-output.md` § "Composition setup for GIF" for the full pattern.
 
-### Add captions (if voiceover exists)
+### Captions (audio mode only)
 
-Generate a captions JSON from the script narration text and audio timing.
-Display subtitles synced to the voiceover using Remotion's caption patterns.
+Skip if `outputFormat != "mp4-audio"`. In silent and GIF modes, on-screen text is part of
+each scene component, not a separate captions track.
+
+Generate a captions JSON from the narration text and audio timing. Display subtitles synced
+to the voiceover using Remotion's caption patterns.
 
 Update `.demo-state.json` with `remotionDir` and phase.
 
@@ -429,23 +592,24 @@ Next: `review`
 <!-- ═══════════════════════════════════════════ -->
 
 <step name="review">
-**Let the user preview the video and optionally render.**
+**Let the user preview, then render in the right format and runtime.**
 
 ### Preview
 
-Start the Remotion dev server:
+Pick the preview command based on `dockerMode`:
 
-```bash
-cd <remotion-dir> && npx remotion studio
-```
+| dockerMode | Preview command |
+|-----------|-----------------|
+| `skip` or `render-only` | `cd <remotion-dir> && npx remotion studio` |
+| `full` | `cd <remotion-dir> && docker compose up studio` |
 
-Tell the user the URL (typically http://localhost:3000) and ask them to preview.
+In all cases, point the user to http://localhost:3000.
 
 Ask: "How does it look? Anything you'd like to change?"
 
 If the user wants changes, make them and re-preview. Common adjustments:
 - Timing (scenes too fast/slow)
-- Text content or narration wording
+- Text content or narration / on-screen text wording
 - Animation style
 - Color scheme or layout
 - Scene order
@@ -456,22 +620,37 @@ When the user is satisfied:
 
 Ask via AskUserQuestion:
 - header: "Render"
-- question: "Ready to render the final MP4?"
+- question: "Ready to render?"
 - options:
-  - "Render now" — render to MP4
+  - "Render now" — render to the chosen format
   - "Not yet" — keep tweaking, I'll render later
 
-If rendering:
+Pick the render command based on `outputFormat` × `dockerMode`:
 
-```bash
-cd <remotion-dir> && npx remotion render <composition-id> out/demo.mp4
-```
+| Format | Host | Docker (render-only or full) |
+|--------|------|------------------------------|
+| `mp4-audio` | `npx remotion render Demo out/demo.mp4` | `docker compose run --rm render` |
+| `mp4-silent` | `npx remotion render Demo out/demo.mp4` | `docker compose run --rm render` |
+| `gif` | `npx remotion render Demo out/demo.gif --codec=gif --every-nth-frame=3` | `docker compose run --rm render npx remotion render Demo out/demo.gif --codec=gif --every-nth-frame=3` |
+
+`mp4-silent` and `mp4-audio` use the same render command — what makes a render silent is the
+absence of voice `<Audio>` components in the composition, not a CLI flag. Remotion 3.2+
+omits the audio track entirely when no `<Audio>` is present. If the user added background
+music via `<Audio>` in silent mode, it plays as expected.
+
+Only use `--muted` if you specifically need to strip an existing audio track (rare — covered
+in `references/remotion-patterns.md`).
+
+For GIF, after rendering, check the file size and report it. If over 10MB, suggest the
+optimizations in `references/gif-output.md` § "Size optimization" (shorter duration first,
+then `--every-nth-frame`, then scale, then palette).
 
 Report the output path and file size when done.
 
 ### Clean up state
 
-Delete `.demo-state.json` — the Remotion project is the durable artifact now.
+Delete `.demo-state.json` — the Remotion project (plus Dockerfile and compose if applicable)
+is the durable artifact now.
 </step>
 
 </process>
@@ -482,22 +661,32 @@ Delete `.demo-state.json` — the Remotion project is the durable artifact now.
 - NEVER render without user approval — always preview first
 - NEVER generate TTS without an approved script — the user must review narration text
 - NEVER overwrite an existing Remotion project without asking
+- NEVER scaffold a project that cannot be rendered — hard-block in `prerequisites` when
+  required tools are missing and Docker isn't available
+- NEVER ask for an ElevenLabs key in GIF or silent MP4 mode — they don't use it
+- NEVER push Docker when the host machine check is all green and the user didn't ask for it
 - If the codebase is too small or trivial for a meaningful demo, say so honestly
-- If ElevenLabs API calls fail, report the error and offer to continue without voiceover
-- Keep demo videos under 3 minutes — shorter is almost always better
-- The Remotion project must be self-contained and runnable after the skill finishes
+- If ElevenLabs API calls fail, report the error and offer to switch to GIF or silent MP4
+- Keep demos short — under 3 minutes for MP4, under 25 seconds for GIF
+- The Remotion project must be self-contained and runnable after the skill finishes,
+  including the Dockerfile and docker-compose.yml if Docker mode was chosen
 </guardrails>
 
 <success_criteria>
-- [ ] Prerequisites checked (Node.js, ElevenLabs key, existing projects)
+- [ ] Output format chosen (mp4-audio | gif | mp4-silent) before any other prereq work
+- [ ] Machine check run with results table presented; hard-block triggered if unrecoverable
+- [ ] Docker decision made when relevant (render-only | full | skip)
+- [ ] ElevenLabs key checked (audio mode only)
+- [ ] Existing Remotion project handled
 - [ ] Codebase analyzed with structured summary presented to user
 - [ ] Demo style and focus areas chosen by user
-- [ ] Creative direction recommended and confirmed (style, music, voice, tone)
-- [ ] Script written with scene breakdown, reviewed and approved by user
-- [ ] Remotion project scaffolded with scene components
-- [ ] TTS audio generated (or intentionally skipped) for each scene
-- [ ] Captions added if voiceover exists
-- [ ] User previewed the video in Remotion Studio
-- [ ] MP4 rendered (if user chose to render)
+- [ ] Creative direction recommended and confirmed (scope adapted to output format)
+- [ ] Script written with scene breakdown and format-appropriate metrics, approved by user
+- [ ] Remotion project scaffolded with scene components matching the chosen format
+- [ ] Docker templates copied to project root if Docker mode was chosen
+- [ ] TTS audio generated (audio mode) or skipped cleanly (silent/GIF modes)
+- [ ] Captions added if voiceover exists; skipped in silent/GIF modes
+- [ ] User previewed via the right command for their Docker mode
+- [ ] Final output rendered with the right command for format × Docker mode (if user chose to render)
 - [ ] State file cleaned up
 </success_criteria>

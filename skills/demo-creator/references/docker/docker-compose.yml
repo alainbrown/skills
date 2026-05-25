@@ -1,0 +1,48 @@
+# TEMPLATE — the skill copies this file and Dockerfile to the user's project
+# root, where both live side-by-side with package.json, src/, public/, etc.
+# All paths below are relative to that root.
+#
+# Two services share the same image:
+#   studio  — runs Remotion Studio on http://localhost:3000 with hot-reload
+#   render  — one-shot container that produces the final MP4 or GIF
+#
+# Usage from the project root:
+#   docker compose up studio              # preview in browser
+#   docker compose run --rm render        # render with the default command
+#   docker compose run --rm render \      # render a GIF instead of MP4
+#     npx remotion render Demo out/demo.gif --codec=gif --every-nth-frame=3
+
+services:
+  studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: demo-creator-remotion:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      # Bind-mount the project for live edits.
+      - .:/app
+      # Anonymous volume preserves node_modules from the image — without this,
+      # the bind mount above shadows the install layer.
+      - /app/node_modules
+    environment:
+      # Pass ElevenLabs key through if the host has one set (audio mode only).
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+    command: ["npx", "remotion", "studio", "--no-open", "--host=0.0.0.0"]
+
+  render:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: demo-creator-remotion:latest
+    volumes:
+      - .:/app
+      - /app/node_modules
+      # Render output writes here, then surfaces on the host filesystem.
+      - ./out:/app/out
+    environment:
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+    # Default render command — override at invocation time for GIF or custom comps:
+    #   docker compose run --rm render npx remotion render Demo out/demo.gif --codec=gif
+    command: ["npx", "remotion", "render", "Demo", "out/demo.mp4"]
