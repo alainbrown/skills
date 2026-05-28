@@ -1,0 +1,31 @@
+id: 01-boot
+name: "Agent boots and responds to a basic greeting"
+level: behavior
+applicability: []   # always runs — every agent needs to handle a greeting
+
+input:
+  user: "hello"
+  history: []
+  context:
+    note: "This is the first message of a fresh session."
+
+expect:
+  must:
+    - "agent emits at least one non-empty assistant_text event"
+    - "agent acknowledges the greeting (does not ignore it or return a tool call with no text)"
+    - "response is appropriate for a first-turn greeting (no error, no apology, no off-topic content)"
+  should:
+    - "tone matches state.context.style (e.g., if style says 'concise', response is under three sentences)"
+    - "if state.agent.description implies a domain, the agent's response gestures at its purpose"
+    - "response is friendly without being effusive"
+  must_not:
+    - "agent invents facts about the user (e.g., addresses them by a name not given)"
+    - "agent makes unnecessary tool calls for a simple greeting"
+    - "agent refuses the greeting or treats it as adversarial"
+
+rubric:
+  scoring: "binary"
+  notes: |
+    Pass if every must item is satisfied AND no must_not is violated. Should items are
+    recorded but do not affect pass/fail. This is the most basic plumbing check — a fail
+    here usually indicates a broken system prompt or a misconfigured harness.

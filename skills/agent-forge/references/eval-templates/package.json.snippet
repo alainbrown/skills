@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "eval": "pnpm eval:smoke && pnpm eval:behavior",
+    "eval:smoke": "bash evals/run-smoke.sh",
+    "eval:behavior": "echo 'Open evals/run-behavior.md in Claude Code and follow the plan. Behavior eval runs as Claude subagents — no API key needed.'",
+    "eval:real": "tsx evals/run-real-model.ts",
+    "eval:real:all": "tsx evals/run-real-model.ts --all"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "yaml": "^2.6.0"
+  }
+}

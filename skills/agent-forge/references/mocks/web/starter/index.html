@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent mock — review states</title>
+
+    <!-- Tailwind dark-mode class strategy (must come BEFORE the CDN script). -->
+    <script>
+      window.tailwind = window.tailwind || {};
+      window.tailwind.config = { darkMode: 'class' };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!--
+      Inlined from the web-ts starter's src/app/globals.css so this mock looks
+      visually identical to the produced project. Do not edit these tokens —
+      they are the design system. Skill edits content, not theme variables.
+    -->
+    <style>
+      :root {
+        --radius: 0.625rem;
+        --background: oklch(1 0 0);
+        --foreground: oklch(0.145 0 0);
+        --card: oklch(1 0 0);
+        --card-foreground: oklch(0.145 0 0);
+        --popover: oklch(1 0 0);
+        --popover-foreground: oklch(0.145 0 0);
+        --primary: oklch(0.205 0 0);
+        --primary-foreground: oklch(0.985 0 0);
+        --secondary: oklch(0.97 0 0);
+        --secondary-foreground: oklch(0.205 0 0);
+        --muted: oklch(0.97 0 0);
+        --muted-foreground: oklch(0.556 0 0);
+        --accent: oklch(0.97 0 0);
+        --accent-foreground: oklch(0.205 0 0);
+        --destructive: oklch(0.577 0.245 27.325);
+        --destructive-foreground: oklch(0.985 0 0);
+        --border: oklch(0.922 0 0);
+        --input: oklch(0.922 0 0);
+        --ring: oklch(0.708 0 0);
+        --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+          'Liberation Mono', monospace;
+      }
+      html.dark {
+        --background: oklch(0.145 0 0);
+        --foreground: oklch(0.985 0 0);
+        --card: oklch(0.205 0 0);
+        --card-foreground: oklch(0.985 0 0);
+        --popover: oklch(0.205 0 0);
+        --popover-foreground: oklch(0.985 0 0);
+        --primary: oklch(0.922 0 0);
+        --primary-foreground: oklch(0.205 0 0);
+        --secondary: oklch(0.269 0 0);
+        --secondary-foreground: oklch(0.985 0 0);
+        --muted: oklch(0.269 0 0);
+        --muted-foreground: oklch(0.708 0 0);
+        --accent: oklch(0.269 0 0);
+        --accent-foreground: oklch(0.985 0 0);
+        --destructive: oklch(0.704 0.191 22.216);
+        --destructive-foreground: oklch(0.985 0 0);
+        --border: oklch(1 0 0 / 10%);
+        --input: oklch(1 0 0 / 15%);
+        --ring: oklch(0.556 0 0);
+      }
+      html, body {
+        background: var(--background);
+        color: var(--foreground);
+        font-family: var(--font-sans);
+        min-height: 100%;
+      }
+      /* Map design-system vars to Tailwind utility colors so classes like
+         bg-card / text-muted-foreground / border-border resolve as expected. */
+      .bg-background { background: var(--background); }
+      .bg-card { background: var(--card); }
+      .bg-card\/40 { background: color-mix(in oklch, var(--card) 40%, transparent); }
+      .bg-card\/60 { background: color-mix(in oklch, var(--card) 60%, transparent); }
+      .bg-card\/70 { background: color-mix(in oklch, var(--card) 70%, transparent); }
+      .bg-card\/95 { background: color-mix(in oklch, var(--card) 95%, transparent); }
+      .bg-muted { background: var(--muted); }
+      .bg-muted\/20 { background: color-mix(in oklch, var(--muted) 20%, transparent); }
+      .bg-muted\/30 { background: color-mix(in oklch, var(--muted) 30%, transparent); }
+      .bg-muted\/40 { background: color-mix(in oklch, var(--muted) 40%, transparent); }
+      .bg-primary { background: var(--primary); }
+      .bg-popover { background: var(--popover); }
+      .text-foreground { color: var(--foreground); }
+      .text-card-foreground { color: var(--card-foreground); }
+      .text-popover-foreground { color: var(--popover-foreground); }
+      .text-primary-foreground { color: var(--primary-foreground); }
+      .text-muted-foreground { color: var(--muted-foreground); }
+      .text-destructive { color: var(--destructive); }
+      .border-border { border-color: var(--border); }
+      .border-input { border-color: var(--input); }
+      .ring-ring { --tw-ring-color: var(--ring); }
+      .rounded-md { border-radius: calc(var(--radius) - 2px); }
+      .rounded-lg { border-radius: var(--radius); }
+      .rounded-xl { border-radius: calc(var(--radius) + 4px); }
+      .rounded-2xl { border-radius: calc(var(--radius) + 8px); }
+
+      /* prose-chat: chat bubble typography, copied from globals.css. */
+      .prose-chat { line-height: 1.6; word-break: break-word; }
+      .prose-chat p { margin: 0 0 0.5em 0; }
+      .prose-chat p:last-child { margin-bottom: 0; }
+      .prose-chat pre {
+        background: var(--muted);
+        color: var(--foreground);
+        padding: 0.75rem 1rem;
+        border-radius: calc(var(--radius) - 2px);
+        overflow-x: auto;
+        font-family: var(--font-mono);
+        font-size: 0.85em;
+        margin: 0.5em 0;
+      }
+      .prose-chat code {
+        background: var(--muted);
+        padding: 0.15em 0.35em;
+        border-radius: 0.25em;
+        font-family: var(--font-mono);
+        font-size: 0.875em;
+      }
+      .prose-chat pre code { background: transparent; padding: 0; }
+
+      /* State visibility: only the active state's section is shown. */
+      [data-show-state] { display: none; }
+      [data-state='default']    .state-default,
+      [data-state='empty']      .state-empty,
+      [data-state='streaming']  .state-streaming,
+      [data-state='approval']   .state-approval,
+      [data-state='error']      .state-error { display: block; }
+
+      /* Blinking caret for streaming. */
+      .caret {
+        display: inline-block;
+        width: 6px;
+        height: 14px;
+        margin-left: 2px;
+        translate: 0 2px;
+        background: var(--foreground);
+        opacity: 0.7;
+        animation: caret-blink 1s steps(2, start) infinite;
+        border-radius: 1px;
+      }
+      @keyframes caret-blink { to { visibility: hidden; } }
+
+      /* Diff line highlighting (mock — real produced project uses react-diff-viewer-continued). */
+      .diff-line { display: block; padding: 0 0.5rem; white-space: pre; font-family: var(--font-mono); font-size: 11px; line-height: 1.5; }
+      .diff-add { background: rgba(16, 185, 129, 0.15); }
+      .diff-add::before { content: '+ '; color: rgb(16, 185, 129); }
+      .diff-del { background: rgba(239, 68, 68, 0.15); }
+      .diff-del::before { content: '- '; color: rgb(239, 68, 68); }
+      .diff-ctx::before { content: '  '; color: var(--muted-foreground); }
+    </style>
+  </head>
+
+  <body class="min-h-svh">
+    <!-- ============================================================
+         Top bar: app header + state switcher.
+         The skill does NOT edit this region. State switching is the
+         mock's UX, not the produced project's UX.
+         ============================================================ -->
+    <div class="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
+      <header class="mx-auto flex max-w-5xl items-baseline justify-between gap-4 px-4 py-3 sm:px-6">
+        <div>
+          <h1 class="text-base font-semibold tracking-tight">
+            <!-- mock content — skill replaces from MOCK.agent.name --><span id="agentName">Agent</span>
+          </h1>
+          <p class="text-xs text-muted-foreground">
+            <!-- mock content — skill replaces from MOCK.agent.description --><span id="agentDescription">tagline</span>
+          </p>
+        </div>
+        <span
+          id="statusPill"
+          class="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+        >
+          <span id="statusDot" class="size-1.5 rounded-full bg-emerald-500"></span>
+          <span id="statusLabel">ready</span>
+        </span>
+      </header>
+
+      <nav
+        aria-label="Mock state switcher"
+        class="mx-auto flex max-w-5xl items-center gap-1 px-4 pb-2 sm:px-6"
+      >
+        <div id="stateSwitcher" class="flex flex-1 flex-wrap gap-1"></div>
+        <button
+          id="themeToggle"
+          type="button"
+          class="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          Dark
+        </button>
+      </nav>
+    </div>
+
+    <!-- ============================================================
+         Chat root — `data-state` drives which section is visible.
+         ============================================================ -->
+    <div id="chatRoot" data-state="default" class="mx-auto max-w-5xl px-4 pb-32 sm:px-6">
+      <div class="grid gap-6 pt-4 md:grid-cols-[1fr_18rem]">
+        <!-- LEFT: state sections -->
+        <div class="flex min-w-0 flex-col">
+          <section data-show-state class="state-empty"  id="sectionEmpty"></section>
+          <section data-show-state class="state-default" id="sectionDefault"></section>
+          <section data-show-state class="state-streaming" id="sectionStreaming"></section>
+          <section data-show-state class="state-approval"  id="sectionApproval"></section>
+          <section data-show-state class="state-error" id="sectionError"></section>
+        </div>
+
+        <!-- RIGHT: sidebar (TodoList — conditional on features.todoWrite) -->
+        <aside id="sidebar" class="hidden md:block">
+          <div id="todoSidebar"></div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         Composer — pinned to bottom; disabled in streaming/approval/error.
+         ============================================================ -->
+    <div class="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background/95 backdrop-blur">
+      <div class="mx-auto max-w-5xl px-4 sm:px-6">
+        <!-- Approval panel mounts here when state=approval -->
+        <div id="approvalSlot"></div>
+
+        <form
+          id="composerForm"
+          class="my-3 flex items-end gap-2 rounded-2xl border border-input bg-card p-2 shadow-sm"
+          onsubmit="event.preventDefault();"
+        >
+          <textarea
+            id="composer"
+            rows="1"
+            placeholder="Send a message..."
+            class="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm leading-6 outline-none placeholder:text-muted-foreground disabled:opacity-50"
+          ></textarea>
+          <button
+            id="composerSend"
+            type="submit"
+            class="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            aria-label="Send message"
+          >
+            <!-- send arrow (inline SVG instead of Lucide) -->
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9 22 2z"/>
+            </svg>
+          </button>
+        </form>
+        <p id="composerHint" class="px-2 pb-2 text-[10px] text-muted-foreground">
+          Press <kbd class="rounded border bg-muted px-1">Enter</kbd> to send,
+          <kbd class="rounded border bg-muted px-1">Shift</kbd>+<kbd class="rounded border bg-muted px-1">Enter</kbd> for newline.
+        </p>
+      </div>
+    </div>
+
+    <footer class="fixed bottom-1 left-3 z-30 text-[10px] text-muted-foreground/80">
+      Mock - no API calls. State: <span id="footerState">default</span>. Edit <code>index.html</code> or <code>mock-data.js</code> to customize.
+    </footer>
+
+    <script src="mock-data.js"></script>
+    <script>
+      /* =============================================================
+         Mock renderer — vanilla JS, no framework.
+         All DOM population happens in init() on DOMContentLoaded.
+         The skill edits MOCK in mock-data.js; structure here is stable.
+         ============================================================= */
+
+      const STATES = [
+        { key: 'default',   label: 'Default',   alwaysOn: true },
+        { key: 'empty',     label: 'Empty',     alwaysOn: true },
+        { key: 'streaming', label: 'Streaming', requires: 'streaming' },
+        { key: 'approval',  label: 'Approval',  requires: 'hitl' },
+        { key: 'error',     label: 'Error',     alwaysOn: true },
+      ];
+
+      const $ = (id) => document.getElementById(id);
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      /* ---------- shared bubble + tool-card templates ---------- */
+
+      function avatarHtml(role) {
+        const isUser = role === 'user';
+        const letter = isUser ? 'U' : 'A';
+        const cls = isUser
+          ? 'border-border bg-primary text-primary-foreground'
+          : 'border-border bg-muted text-foreground';
+        return `<div aria-hidden="true" class="flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${cls}">${letter}</div>`;
+      }
+
+      function toolCardHtml(tool) {
+        const open = !!tool.expanded;
+        const statusCls =
+          tool.status === 'running'
+            ? 'text-muted-foreground'
+            : tool.status === 'error'
+              ? 'text-destructive'
+              : 'text-emerald-600';
+        const statusLabel = tool.status === 'running' ? 'running' : tool.status === 'error' ? 'error' : 'done';
+        const spinner = tool.status === 'running'
+          ? '<svg class="size-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" opacity="0.3"/><path d="M21 12a9 9 0 0 0-9-9"/></svg>'
+          : '<span class="size-1.5 rounded-full" style="background:currentColor"></span>';
+        const chevron = open
+          ? '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>'
+          : '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg>';
+        const body = open
+          ? `<div class="space-y-2 border-t border-border p-3">
+               <div>
+                 <div class="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Input</div>
+                 <pre class="max-h-72 overflow-auto rounded-md bg-background/60 p-2 font-mono text-[11px]">${escapeHtml(JSON.stringify(tool.args, null, 2))}</pre>
+               </div>
+               ${
+                 tool.status === 'done'
+                   ? `<div>
+                        <div class="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Result</div>
+                        <pre class="max-h-72 overflow-auto rounded-md bg-background/60 p-2 font-mono text-[11px]">${escapeHtml(JSON.stringify(tool.result, null, 2))}</pre>
+                      </div>`
+                   : ''
+               }
+             </div>`
+          : '';
+        return `
+          <div data-testid="tool-invocation" class="w-full rounded-lg border border-border bg-muted/30 text-xs">
+            <button type="button" class="flex w-full items-center gap-2 px-3 py-2 text-left">
+              ${chevron}
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" class="text-muted-foreground"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4z"/></svg>
+              <span class="font-mono font-medium">${escapeHtml(tool.name)}</span>
+              <span class="ml-auto inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                <span class="${statusCls}">${spinner}</span>${statusLabel}
+              </span>
+            </button>
+            ${body}
+          </div>
+        `;
+      }
+
+      // Render assistant content with simple markdown handling for ```code```
+      // blocks. Real project uses ReactMarkdown + remark-gfm; this is enough
+      // for a faithful visual preview.
+      function renderMarkdown(text) {
+        const parts = String(text).split(/```([\s\S]*?)```/);
+        return parts
+          .map((seg, i) => {
+            if (i % 2 === 1) {
+              return `<pre><code>${escapeHtml(seg.replace(/^\n/, ''))}</code></pre>`;
+            }
+            // Inline citation markers [1] [1,2] get the popover wrapper.
+            return escapeHtml(seg)
+              .split(/(\[\d+(?:\s*,\s*\d+)*\])/g)
+              .map((piece) =>
+                /^\[\d+(?:\s*,\s*\d+)*\]$/.test(piece) && MOCK.features.citations
+                  ? `<span class="citation-marker relative inline-flex items-baseline rounded px-0.5 text-[0.85em] font-medium text-sky-600 hover:bg-sky-100 hover:text-sky-700 dark:text-sky-400 dark:hover:bg-sky-900/40">${piece}</span>`
+                  : piece,
+              )
+              .join('')
+              .split(/\n\n/)
+              .map((p) => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+              .join('');
+          })
+          .join('');
+      }
+
+      function messageHtml(msg, opts = {}) {
+        const isUser = msg.role === 'user';
+        const bubbleCls = isUser
+          ? 'rounded-2xl rounded-tr-sm bg-primary text-primary-foreground'
+          : 'rounded-2xl rounded-tl-sm border border-border bg-card text-card-foreground';
+        const streamingRing = opts.streaming ? ' ring-1 ring-foreground/10' : '';
+        const tools = (msg.toolCalls || []).map(toolCardHtml).join('');
+        const content = isUser
+          ? `<p>${escapeHtml(msg.content)}</p>`
+          : renderMarkdown(msg.content);
+        const caret = opts.streaming && !isUser ? '<span class="caret"></span>' : '';
+        const copyBtn =
+          !isUser && !opts.streaming
+            ? `<button type="button" class="mt-1 inline-flex h-6 items-center gap-1 rounded px-2 text-xs text-muted-foreground hover:text-foreground">
+                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                 Copy
+               </button>`
+            : '';
+        return `
+          <li data-role="${msg.role}" class="flex w-full gap-3 px-1 ${isUser ? 'flex-row-reverse' : 'flex-row'}">
+            ${avatarHtml(msg.role)}
+            <div class="flex max-w-[85%] flex-col gap-2 ${isUser ? 'items-end' : 'items-start'}">
+              ${tools ? `<div class="flex w-full flex-col gap-2">${tools}</div>` : ''}
+              <div class="prose-chat px-4 py-2.5 text-sm shadow-sm ${bubbleCls}${streamingRing}">
+                ${content}${caret}
+              </div>
+              ${copyBtn}
+            </div>
+          </li>
+        `;
+      }
+
+      function conversationHtml(messages, opts = {}) {
+        return `<ol class="flex flex-col gap-6" aria-label="Chat messages">${messages.map((m) => messageHtml(m, opts.streamingLast && m === messages[messages.length - 1] ? { streaming: true } : {})).join('')}</ol>`;
+      }
+
+      /* ---------- per-state renderers ---------- */
+
+      function renderEmpty() {
+        const cards = MOCK.empty.suggestions
+          .map(
+            (s) => `
+            <button type="button" class="rounded-xl border border-border bg-card/60 p-3 text-left text-sm shadow-sm hover:bg-muted/40">
+              <span class="text-muted-foreground">${escapeHtml(s)}</span>
+            </button>`,
+          )
+          .join('');
+        $('sectionEmpty').innerHTML = `
+          <div class="flex flex-col items-center gap-4 py-12 text-center">
+            <div class="rounded-2xl border border-dashed border-border bg-muted/30 p-4">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" class="text-muted-foreground"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div>
+              <p class="text-base font-semibold">${escapeHtml(MOCK.agent.name)}</p>
+              <p class="mt-1 text-sm text-muted-foreground">${escapeHtml(MOCK.agent.description)}</p>
+            </div>
+            <div class="mt-2 grid w-full max-w-xl gap-2 sm:grid-cols-2">${cards}</div>
+          </div>
+        `;
+      }
+
+      function renderDefault() {
+        const msgs = MOCK.default.messages;
+        let inner = conversationHtml(msgs);
+        // Pinned-open citation popover preview (real component is hover-only).
+        if (MOCK.features.citations && MOCK.default.citations?.length) {
+          const c = MOCK.default.citations[0];
+          inner += `
+            <div class="mt-4 flex justify-start">
+              <div class="ml-10 max-w-sm rounded-md border border-border bg-popover p-2 text-left text-xs text-popover-foreground shadow-lg">
+                <div class="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">CitationPopover preview (hover-only in real app)</div>
+                <div class="font-semibold">[${c.index}] ${escapeHtml(c.title)}</div>
+                ${c.excerpt ? `<div class="mt-0.5 text-muted-foreground">${escapeHtml(c.excerpt)}</div>` : ''}
+                <div class="mt-0.5 truncate font-mono text-[10px] text-sky-600 dark:text-sky-400">${escapeHtml(c.source)}</div>
+              </div>
+            </div>`;
+        }
+        $('sectionDefault').innerHTML = inner;
+      }
+
+      function renderStreaming() {
+        const base = MOCK.default.messages.slice(0, -1);
+        const lastUser = MOCK.default.messages.find((m) => m.role === 'user');
+        const partial = {
+          id: 'streaming',
+          role: 'assistant',
+          content: MOCK.streaming.partialMessage,
+          toolCalls: [MOCK.streaming.inProgressTool],
+        };
+        const pill = `
+          <div class="mb-2 inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span class="size-1.5 animate-pulse rounded-full bg-amber-500"></span>streaming...
+          </div>`;
+        $('sectionStreaming').innerHTML = pill + conversationHtml([lastUser, partial], { streamingLast: true });
+      }
+
+      function renderApproval() {
+        // Approval state = a normal conversation + an ApprovalPanel slot.
+        $('sectionApproval').innerHTML = conversationHtml(MOCK.default.messages);
+      }
+
+      function renderApprovalPanel() {
+        if (!MOCK.features.hitl) {
+          $('approvalSlot').innerHTML = '';
+          return;
+        }
+        const a = MOCK.approval.pendingApproval;
+        const beforeLines = a.diff.before.split('\n');
+        const afterLines = a.diff.after.split('\n');
+        const diffHtml = beforeLines
+          .map((b, i) => {
+            const af = afterLines[i] ?? '';
+            if (b === af) return `<span class="diff-line diff-ctx">${escapeHtml(b)}</span>`;
+            return `<span class="diff-line diff-del">${escapeHtml(b)}</span><span class="diff-line diff-add">${escapeHtml(af)}</span>`;
+          })
+          .join('');
+        $('approvalSlot').innerHTML = `
+          <div role="region" aria-label="Pending tool approvals"
+               class="my-3 flex flex-col gap-2 rounded-md border border-amber-500/40 bg-amber-50/40 p-2 dark:bg-amber-950/20">
+            <div class="px-1 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+              Pending approvals (1)
+            </div>
+            <div class="rounded border border-amber-500/30 bg-card/70 p-2 text-xs">
+              <div class="mb-1 flex items-center justify-between gap-2">
+                <span class="font-mono font-medium text-amber-700 dark:text-amber-300">${escapeHtml(a.toolName)}</span>
+                <span class="truncate text-muted-foreground">${escapeHtml(a.summary || '')}</span>
+              </div>
+              <div class="mb-2 overflow-hidden rounded-md border border-border bg-card/40">
+                <div class="border-b border-border bg-muted/40 px-3 py-1 font-mono text-[11px] text-muted-foreground">${escapeHtml(a.summary || '')}</div>
+                <div class="max-h-60 overflow-auto py-1">${diffHtml}</div>
+              </div>
+              <div class="flex gap-2">
+                <button type="button" class="rounded bg-emerald-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500">Approve</button>
+                <button type="button" class="rounded bg-red-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-red-500">Reject</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderError() {
+        const e = MOCK.error.lastError;
+        const msgs = MOCK.default.messages.slice();
+        const inner =
+          conversationHtml(msgs) +
+          `
+          <div role="alert" class="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3">
+            <div class="flex items-start gap-2">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" class="mt-0.5 text-destructive"><path d="M12 9v4M12 17h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+              <div class="flex-1">
+                <div class="text-xs font-semibold text-destructive">${escapeHtml(e.type)}</div>
+                <div class="mt-0.5 text-xs text-destructive/90">${escapeHtml(e.message)}</div>
+              </div>
+              <button type="button" class="rounded border border-destructive/40 px-2 py-1 text-xs text-destructive hover:bg-destructive/10">
+                Retry now
+              </button>
+            </div>
+          </div>`;
+        $('sectionError').innerHTML = inner;
+      }
+
+      function renderSidebar() {
+        if (!MOCK.features.todoWrite || !MOCK.todos?.length) {
+          $('sidebar').classList.add('hidden');
+          return;
+        }
+        const ICON = { pending: '○', in_progress: '◐', completed: '●' };
+        const counts = MOCK.todos.reduce((acc, t) => ({ ...acc, [t.status]: (acc[t.status] || 0) + 1 }), {});
+        const summary = `${MOCK.todos.length} todo${MOCK.todos.length === 1 ? '' : 's'} - ${counts.in_progress || 0} in progress - ${counts.completed || 0} completed`;
+        const rows = MOCK.todos
+          .map(
+            (t) => `
+            <li class="flex items-start gap-2 rounded px-2 py-1 text-sm ${t.status === 'in_progress' ? 'animate-pulse bg-muted/30' : ''} ${t.status === 'completed' ? 'text-muted-foreground line-through' : ''}">
+              <span aria-hidden="true" class="mt-0.5 select-none font-mono text-xs ${t.status === 'completed' ? 'text-emerald-600' : t.status === 'in_progress' ? 'text-amber-500' : ''}">${ICON[t.status]}</span>
+              <span class="flex-1 break-words">${escapeHtml(t.text)}</span>
+            </li>`,
+          )
+          .join('');
+        $('todoSidebar').innerHTML = `
+          <div class="flex flex-col rounded-md border border-border bg-card/60 text-sm">
+            <div class="rounded-t-md border-b border-border bg-card/95 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">${summary}</div>
+            <ol class="flex flex-col gap-1 p-2" aria-label="Agent todos">${rows}</ol>
+          </div>
+        `;
+      }
+
+      /* ---------- composer + status updates per state ---------- */
+
+      function applyComposerState(state) {
+        const composer = $('composer');
+        const send = $('composerSend');
+        const hint = $('composerHint');
+        const disabled = state === 'streaming' || state === 'approval' || state === 'error';
+        composer.disabled = disabled;
+        send.disabled = disabled;
+        if (state === 'approval') {
+          hint.textContent = 'Resolve approval to continue.';
+        } else if (state === 'streaming') {
+          hint.textContent = 'Streaming - composer disabled until the turn completes.';
+        } else if (state === 'error') {
+          hint.textContent = 'Composer disabled until the error resolves.';
+        } else {
+          hint.innerHTML =
+            'Press <kbd class="rounded border bg-muted px-1">Enter</kbd> to send, <kbd class="rounded border bg-muted px-1">Shift</kbd>+<kbd class="rounded border bg-muted px-1">Enter</kbd> for newline.';
+        }
+      }
+
+      function applyStatusPill(state) {
+        const dot = $('statusDot');
+        const label = $('statusLabel');
+        const colorMap = {
+          default:   ['bg-emerald-500', 'ready'],
+          empty:     ['bg-emerald-500', 'ready'],
+          streaming: ['bg-amber-500',   'streaming'],
+          approval:  ['bg-amber-500',   'awaiting approval'],
+          error:     ['bg-red-500',     'error'],
+        };
+        const [c, l] = colorMap[state] || colorMap.default;
+        dot.className = `size-1.5 rounded-full ${c}`;
+        label.textContent = l;
+      }
+
+      function applyApprovalSlot(state) {
+        $('approvalSlot').style.display = state === 'approval' ? 'block' : 'none';
+      }
+
+      function applySidebar(state) {
+        // TodoList sidebar is only meaningful in default/streaming/approval/error
+        // (anywhere there's an active conversation). Hide on empty.
+        const show = MOCK.features.todoWrite && state !== 'empty';
+        $('sidebar').classList.toggle('hidden', !show);
+      }
+
+      /* ---------- state switcher ---------- */
+
+      function setState(state) {
+        $('chatRoot').dataset.state = state;
+        $('footerState').textContent = state;
+        document.querySelectorAll('#stateSwitcher button[data-state-key]').forEach((b) => {
+          const active = b.dataset.stateKey === state;
+          b.setAttribute('aria-pressed', active ? 'true' : 'false');
+          b.className = active
+            ? 'rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground'
+            : 'rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground';
+        });
+        applyComposerState(state);
+        applyStatusPill(state);
+        applyApprovalSlot(state);
+        applySidebar(state);
+      }
+
+      function buildSwitcher() {
+        const host = $('stateSwitcher');
+        host.innerHTML = STATES
+          .map((s) => {
+            const enabled =
+              s.alwaysOn || (s.requires === 'hitl' && MOCK.features.hitl) || (s.requires === 'streaming' && MOCK.features.streaming);
+            return `<button type="button" data-state-key="${s.key}" ${enabled ? '' : 'disabled aria-disabled="true" title="Disabled - feature not in this agent\\'s design"'} class="${enabled ? 'rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground' : 'cursor-not-allowed rounded-md border border-border px-3 py-1 text-xs text-muted-foreground/40'}">${s.label}</button>`;
+          })
+          .join('');
+        host.querySelectorAll('button:not([disabled])').forEach((b) => {
+          b.addEventListener('click', () => setState(b.dataset.stateKey));
+        });
+      }
+
+      function bindThemeToggle() {
+        const btn = $('themeToggle');
+        btn.addEventListener('click', () => {
+          const isDark = document.documentElement.classList.toggle('dark');
+          btn.textContent = isDark ? 'Light' : 'Dark';
+        });
+      }
+
+      function init() {
+        // Header data.
+        $('agentName').textContent = MOCK.agent.name;
+        $('agentDescription').textContent = MOCK.agent.description;
+
+        // Build per-state DOM.
+        renderEmpty();
+        renderDefault();
+        renderStreaming();
+        renderApproval();
+        renderApprovalPanel();
+        renderError();
+        renderSidebar();
+
+        buildSwitcher();
+        bindThemeToggle();
+        setState('default');
+      }
+
+      document.addEventListener('DOMContentLoaded', init);
+    </script>
+  </body>
+</html>

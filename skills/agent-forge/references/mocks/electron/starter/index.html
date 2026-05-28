@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RecipeKeeper — Mock</title>
+
+    <!--
+      Tailwind via CDN. Configure BEFORE loading the CDN script so dark-mode
+      (class strategy) is recognized when classes are compiled at runtime.
+    -->
+    <script>
+      window.tailwind = window.tailwind || {};
+      window.tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                400: '#7dd3fc',
+                500: '#38bdf8',
+                600: '#0284c7',
+                700: '#0369a1',
+              },
+            },
+            fontFamily: {
+              mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+            },
+          },
+        },
+      };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* App background — a faint frosted off-black like a real desktop app */
+      body { background: #0b1020; }
+
+      /* Blinking caret used in the streaming state */
+      .caret {
+        display: inline-block;
+        width: 0.5ch;
+        background: currentColor;
+        margin-left: 1px;
+        animation: blink 1s steps(1) infinite;
+      }
+      @keyframes blink { 50% { opacity: 0; } }
+
+      /* State + layout switching via body data-attrs.
+         All states/layouts coexist in the DOM; CSS toggles visibility.
+         This makes everything inspectable without JS.                          */
+      .state-block { display: none; }
+      body[data-state="empty"]      .state-empty      { display: block; }
+      body[data-state="default"]    .state-default    { display: block; }
+      body[data-state="streaming"]  .state-streaming  { display: block; }
+      body[data-state="approval"]   .state-approval   { display: block; }
+      body[data-state="error"]      .state-error      { display: block; }
+
+      /* Single-pane: chat takes full width, sidebar+editor hidden */
+      body[data-layout="single"]    #left-pane   { display: none; }
+      body[data-layout="single"]    #center-pane { display: none; }
+      body[data-layout="single"]    #workspace   { grid-template-columns: 1fr; }
+
+      /* Three-pane: full grid with sidebar | editor | chat */
+      body[data-layout="three"]     #workspace   { grid-template-columns: 240px minmax(0,1fr) 420px; }
+
+      /* TodoList drawer (right-of-chat) — collapsible in default state */
+      body[data-todo-open="false"]  #todo-drawer { display: none; }
+
+      /* Citation popover anchor + bubble */
+      .cite-anchor { position: relative; }
+      .cite-bubble {
+        position: absolute;
+        top: 1.5rem;
+        left: 0;
+        z-index: 20;
+        min-width: 260px;
+        max-width: 320px;
+      }
+
+      /* Subtle scrollbar to feel native */
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+
+      /* Faked CodeMirror-ish gutter for editor pane */
+      .gutter {
+        user-select: none;
+        color: #475569;
+        padding: 0 0.5rem;
+        text-align: right;
+      }
+    </style>
+
+    <script src="mock-data.js"></script>
+  </head>
+  <body data-state="default" data-layout="three" data-todo-open="true" class="text-slate-100 font-sans antialiased">
+
+    <!-- ─────────────────── Desktop titlebar (traffic lights) ─────────────────── -->
+    <div class="flex h-7 items-center border-b border-slate-800 bg-slate-950 px-3 select-none">
+      <div class="flex gap-1.5">
+        <span class="h-3 w-3 rounded-full bg-red-500"></span>
+        <span class="h-3 w-3 rounded-full bg-yellow-400"></span>
+        <span class="h-3 w-3 rounded-full bg-green-500"></span>
+      </div>
+      <div class="flex-1 text-center text-xs text-slate-400" id="titlebar-name">Agent</div>
+      <div class="w-14"></div>
+    </div>
+
+    <!-- ─────────────────── Mock toolbar (state + layout switchers) ─────────────────── -->
+    <div class="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-slate-800 bg-slate-900/80 px-3 py-1.5 text-xs backdrop-blur">
+      <div class="flex items-center gap-1">
+        <span class="mr-2 uppercase tracking-wider text-slate-500">State</span>
+        <button data-set-state="empty"     class="state-btn rounded px-2 py-0.5 hover:bg-slate-800">Empty</button>
+        <button data-set-state="default"   class="state-btn rounded px-2 py-0.5 hover:bg-slate-800">Default</button>
+        <button data-set-state="streaming" class="state-btn rounded px-2 py-0.5 hover:bg-slate-800">Streaming</button>
+        <button data-set-state="approval"  class="state-btn rounded px-2 py-0.5 hover:bg-slate-800">Approval</button>
+        <button data-set-state="error"     class="state-btn rounded px-2 py-0.5 hover:bg-slate-800">Error</button>
+      </div>
+      <div class="flex items-center gap-1">
+        <span class="mr-2 uppercase tracking-wider text-slate-500">Layout</span>
+        <button data-set-layout="single" class="layout-btn rounded px-2 py-0.5 hover:bg-slate-800">Single-pane</button>
+        <button data-set-layout="three"  class="layout-btn rounded px-2 py-0.5 hover:bg-slate-800">Three-pane</button>
+      </div>
+    </div>
+
+    <!-- ─────────────────── Agent header strip ─────────────────── -->
+    <header class="flex items-center justify-between border-b border-slate-800 bg-slate-950/60 px-4 py-2">
+      <div class="flex items-center gap-2">
+        <div class="h-2.5 w-2.5 rounded-full bg-brand-500"></div>
+        <span class="text-sm font-semibold tracking-wide" id="agent-name">RecipeKeeper</span>
+        <span class="text-xs text-slate-500">claude-3-7-sonnet</span>
+      </div>
+      <nav class="flex items-center gap-2 text-xs text-slate-400">
+        <button class="rounded bg-slate-800 px-2 py-1 text-slate-100">Workspace</button>
+        <button class="rounded px-2 py-1 hover:text-slate-200">Settings</button>
+      </nav>
+    </header>
+
+    <!-- ─────────────────── Workspace grid ─────────────────── -->
+    <main id="workspace" class="grid h-[calc(100vh-7rem-1.75rem)] overflow-hidden">
+
+      <!-- ◆◆◆ LEFT PANE: file-tree sidebar (three-pane only) ◆◆◆ -->
+      <aside id="left-pane" class="flex h-full flex-col border-r border-slate-800 bg-slate-950/60">
+        <div class="flex items-center justify-between border-b border-slate-800 px-3 py-2">
+          <div>
+            <div class="text-[10px] uppercase tracking-wide text-slate-500">Recipes</div>
+            <div class="truncate font-mono text-xs text-slate-300" id="sidebar-root">~/recipes</div>
+          </div>
+          <span
+            class="rounded border border-emerald-900/60 bg-emerald-900/30 px-1.5 py-0.5 text-[10px] text-emerald-300"
+            title="Watching for external file changes"
+          >synced 2s ago</span>
+        </div>
+        <div class="flex-1 overflow-y-auto py-2" id="sidebar-tree">
+          <!-- file tree rendered by JS from MOCK.sidebar.files -->
+        </div>
+        <div class="border-t border-slate-800 px-3 py-1.5 text-[10px] text-slate-500">
+          10 files · 2 folders
+        </div>
+      </aside>
+
+      <!-- ◆◆◆ CENTER PANE: markdown editor (three-pane only) ◆◆◆ -->
+      <section id="center-pane" class="flex h-full flex-col bg-slate-950/40">
+        <div class="flex items-center justify-between border-b border-slate-800 px-3 py-1.5 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="font-mono text-slate-300" id="editor-path">recipes/mains/pad-thai.md</span>
+            <span class="text-slate-500">saved</span>
+          </div>
+          <span class="text-slate-500" id="editor-status">read-only preview</span>
+        </div>
+        <div class="flex-1 overflow-auto bg-slate-950">
+          <pre class="flex font-mono text-[12.5px] leading-6 text-slate-200"><span class="gutter" id="editor-gutter"></span><code id="editor-code" class="flex-1 whitespace-pre px-3 py-2"></code></pre>
+        </div>
+      </section>
+
+      <!-- ◆◆◆ RIGHT PANE: chat (always visible; full-width when single-pane) ◆◆◆ -->
+      <section class="flex h-full min-w-0 flex-col border-l border-slate-800 bg-slate-950">
+
+        <!-- Approval banner — only renders in approval state -->
+        <div class="state-block state-approval border-b border-amber-900/60 bg-amber-950/30 px-3 py-2">
+          <div class="mb-2 text-[10px] uppercase tracking-wide text-amber-400">Pending recipe edits (1)</div>
+          <div id="approval-card" class="rounded border border-amber-900/60 bg-slate-900/70 p-2 text-xs">
+            <!-- filled by JS -->
+          </div>
+        </div>
+
+        <!-- Conversation scroll region (single-pane shows max-w container; three-pane uses available width) -->
+        <div class="flex flex-1 min-h-0">
+
+          <!-- The chat scroll area itself -->
+          <div id="chat-scroll" class="flex-1 overflow-y-auto px-4 py-6">
+            <div class="mx-auto flex max-w-3xl flex-col gap-4">
+
+              <!-- ─── EMPTY STATE ─── -->
+              <div class="state-block state-empty">
+                <div class="mt-8 rounded-xl border border-slate-800 bg-slate-900/40 p-6 text-center">
+                  <div class="mb-1 text-lg font-semibold" id="welcome-name">RecipeKeeper</div>
+                  <p class="mx-auto max-w-md text-sm text-slate-400" id="welcome-desc">
+                    A desktop assistant for organizing your personal recipe collection — substitutions, scaling, and tidy edits to your saved recipes.
+                  </p>
+                </div>
+                <div class="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2" id="welcome-suggestions">
+                  <!-- suggestion cards rendered by JS -->
+                </div>
+              </div>
+
+              <!-- ─── DEFAULT STATE ─── -->
+              <div class="state-block state-default flex flex-col gap-4" id="default-messages">
+                <!-- rendered by JS -->
+              </div>
+
+              <!-- ─── STREAMING STATE ─── -->
+              <div class="state-block state-streaming flex flex-col gap-4" id="streaming-messages">
+                <!-- rendered by JS -->
+              </div>
+
+              <!-- ─── APPROVAL STATE ─── -->
+              <div class="state-block state-approval flex flex-col gap-4" id="approval-messages">
+                <!-- rendered by JS -->
+              </div>
+
+              <!-- ─── ERROR STATE ─── -->
+              <div class="state-block state-error flex flex-col gap-4" id="error-messages">
+                <!-- rendered by JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- TodoList drawer (only shown when in default state AND drawer open) -->
+          <aside id="todo-drawer" class="hidden w-64 shrink-0 border-l border-slate-800 bg-slate-950/70 state-default">
+            <div class="flex items-center justify-between border-b border-slate-800 px-3 py-2">
+              <div class="text-[10px] uppercase tracking-wide text-slate-500">Agent todos</div>
+              <button
+                id="toggle-todos"
+                class="rounded px-1.5 py-0.5 text-[10px] text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                title="Collapse todo drawer"
+              >×</button>
+            </div>
+            <ol class="flex flex-col gap-1 p-2 text-sm" id="todo-list"></ol>
+          </aside>
+        </div>
+
+        <!-- ─── Composer ─── -->
+        <form
+          id="composer"
+          onsubmit="event.preventDefault(); /* mock — no submit */"
+          class="border-t border-slate-800 bg-slate-950 px-4 py-3"
+        >
+          <div class="mx-auto flex max-w-3xl items-center gap-2">
+            <input
+              type="text"
+              id="composer-input"
+              placeholder="Ask the recipe agent…"
+              class="flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm placeholder:text-slate-500 focus:border-brand-500 focus:outline-none"
+            />
+            <button
+              type="submit"
+              id="composer-send"
+              class="rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+            >Send</button>
+          </div>
+          <div id="composer-helper" class="mx-auto mt-1 max-w-3xl text-[11px] text-slate-500"></div>
+        </form>
+
+        <!-- Footer note (mock attribution) -->
+        <div class="border-t border-slate-800 bg-slate-950 px-3 py-1 text-center text-[10px] text-slate-500">
+          Mock — no IPC, no API. State: <span id="footer-state">default</span> / Layout: <span id="footer-layout">three</span>. Edit <code>index.html</code> to customize.
+        </div>
+      </section>
+    </main>
+
+    <!-- ─────────────────── Mock controller ─────────────────── -->
+    <script>
+      // -----------------------------------------------------------------
+      // Helpers
+      // -----------------------------------------------------------------
+      const $ = (sel, root = document) => root.querySelector(sel);
+      const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+      function el(tag, attrs = {}, ...children) {
+        const node = document.createElement(tag);
+        for (const [k, v] of Object.entries(attrs)) {
+          if (k === 'class') node.className = v;
+          else if (k === 'html') node.innerHTML = v;
+          else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+          else node.setAttribute(k, v);
+        }
+        for (const c of children) {
+          if (c == null) continue;
+          if (typeof c === 'string') node.appendChild(document.createTextNode(c));
+          else node.appendChild(c);
+        }
+        return node;
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      // Render text with `[N]` citation markers replaced by hoverable spans.
+      function renderWithCitations(text, citations) {
+        const parts = [];
+        const re = /\[(\d+)\]/g;
+        let last = 0;
+        let m;
+        while ((m = re.exec(text)) !== null) {
+          if (m.index > last) parts.push({ kind: 'text', text: text.slice(last, m.index) });
+          parts.push({ kind: 'cite', index: parseInt(m[1], 10) });
+          last = m.index + m[0].length;
+        }
+        if (last < text.length) parts.push({ kind: 'text', text: text.slice(last) });
+
+        const wrap = el('span');
+        for (const p of parts) {
+          if (p.kind === 'text') {
+            wrap.appendChild(document.createTextNode(p.text));
+          } else {
+            const c = (citations || []).find((x) => x.index === p.index);
+            const anchor = el('span', { class: 'cite-anchor inline-block' });
+            const marker = el('button', {
+              class: 'mx-0.5 rounded bg-brand-700/40 px-1 text-[11px] font-semibold text-brand-300 align-text-top hover:bg-brand-700/60',
+              type: 'button',
+              title: c ? c.title : `[${p.index}]`,
+            }, `[${p.index}]`);
+            anchor.appendChild(marker);
+            // In default state the FIRST citation popover is rendered open
+            // so reviewers can see what it looks like without hovering.
+            if (c && p.index === 1) {
+              const bubble = el('div', {
+                class:
+                  'cite-bubble rounded-md border border-slate-700 bg-slate-900 p-2 text-[11px] shadow-xl',
+              });
+              bubble.appendChild(el('div', { class: 'mb-0.5 font-semibold text-slate-100' }, c.title));
+              if (c.excerpt) bubble.appendChild(el('div', { class: 'mb-1 text-slate-300' }, c.excerpt));
+              bubble.appendChild(el('a', {
+                class: 'font-mono text-brand-400 hover:underline',
+                href: '#',
+                onclick: (e) => e.preventDefault(),
+              }, c.source));
+              anchor.appendChild(bubble);
+            }
+            wrap.appendChild(anchor);
+          }
+        }
+        return wrap;
+      }
+
+      // -----------------------------------------------------------------
+      // Top-chrome / titlebar / welcome
+      // -----------------------------------------------------------------
+      function renderHeader() {
+        $('#titlebar-name').textContent = MOCK.agent.name;
+        $('#agent-name').textContent = MOCK.agent.name;
+        $('#welcome-name').textContent = MOCK.agent.name;
+        $('#welcome-desc').textContent = MOCK.agent.description;
+      }
+
+      function renderSuggestions() {
+        const root = $('#welcome-suggestions');
+        root.innerHTML = '';
+        for (const s of MOCK.empty.suggestions) {
+          const card = el(
+            'button',
+            {
+              class:
+                'rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-left text-sm transition hover:border-brand-500 hover:bg-slate-900',
+            },
+            el('div', { class: 'mb-1 text-slate-100' }, s.title),
+            el('div', { class: 'text-xs text-slate-400' }, s.body),
+          );
+          root.appendChild(card);
+        }
+      }
+
+      // -----------------------------------------------------------------
+      // Sidebar tree (recursive)
+      // -----------------------------------------------------------------
+      function renderTree() {
+        const root = $('#sidebar-tree');
+        root.innerHTML = '';
+        const ul = el('ul', { class: 'flex flex-col' });
+        renderNode(ul, MOCK.sidebar.files, 0);
+        // The "recipes" top dir's children become top-level rows of the rendered list,
+        // matching the recipe-agent shape.
+        root.appendChild(ul);
+      }
+
+      function renderNode(parent, node, depth) {
+        if (node.isDir) {
+          if (depth > 0) {
+            const indent = `padding-left: ${depth * 12 + 8}px`;
+            const dir = el('li', null,
+              el('button', {
+                class: 'flex w-full items-center gap-1 py-0.5 text-left text-xs text-slate-300 hover:bg-slate-900',
+                style: indent,
+                type: 'button',
+              },
+                el('span', { class: 'w-3 text-slate-500' }, node.expanded ? '▾' : '▸'),
+                el('span', { class: 'font-medium' }, node.name + '/'),
+              ),
+            );
+            parent.appendChild(dir);
+          }
+          if (node.expanded && node.children) {
+            const childUl = el('ul', null);
+            for (const c of node.children) renderNode(childUl, c, depth + 1);
+            parent.appendChild(childUl);
+          }
+        } else {
+          const indent = `padding-left: ${depth * 12 + 8}px`;
+          const cls = node.active
+            ? 'flex w-full items-center gap-1 py-0.5 text-left text-xs bg-slate-800 text-brand-300'
+            : 'flex w-full items-center gap-1 py-0.5 text-left text-xs text-slate-400 hover:bg-slate-900';
+          parent.appendChild(
+            el('li', null,
+              el('button', { class: cls, style: indent, type: 'button' },
+                el('span', { class: 'w-3' }),
+                el('span', { class: 'truncate' }, node.name),
+              ),
+            ),
+          );
+        }
+      }
+
+      // -----------------------------------------------------------------
+      // Editor pane (read-only preview of the active file)
+      // -----------------------------------------------------------------
+      function renderEditor() {
+        const file = MOCK.editor.activeFile;
+        $('#editor-path').textContent = file.path;
+        const code = $('#editor-code');
+        const gutter = $('#editor-gutter');
+        code.textContent = file.content;
+        const lines = file.content.split('\n').length;
+        gutter.textContent = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
+      }
+
+      // -----------------------------------------------------------------
+      // Tool invocation card
+      // -----------------------------------------------------------------
+      function renderToolCall(tc, opts = {}) {
+        const { running = false } = opts;
+        const dotCls = running ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400';
+        const label = running ? 'running…' : 'complete';
+        const expanded = tc.expanded ?? false;
+        const card = el('div', {
+          class:
+            'rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs',
+        });
+        const head = el('div', { class: 'flex w-full items-center justify-between gap-2' },
+          el('span', { class: 'flex items-center gap-2' },
+            el('span', { class: `inline-block h-2 w-2 rounded-full ${dotCls}` }),
+            el('span', { class: 'font-mono text-slate-200' }, tc.name),
+            el('span', { class: 'text-slate-500' }, label),
+          ),
+          el('span', { class: 'text-slate-500' }, expanded ? '▾' : '▸'),
+        );
+        card.appendChild(head);
+        if (expanded) {
+          const body = el('div', { class: 'mt-2 grid grid-cols-1 gap-2' });
+          body.appendChild(blockNode('input', JSON.stringify(tc.args, null, 2)));
+          if (tc.result) body.appendChild(blockNode('output', tc.result));
+          card.appendChild(body);
+        }
+        return card;
+      }
+
+      function blockNode(label, value) {
+        const wrap = el('div', null);
+        wrap.appendChild(
+          el('div', { class: 'mb-0.5 text-[10px] uppercase tracking-wide text-slate-500' }, label),
+        );
+        wrap.appendChild(
+          el('pre', {
+            class: 'max-h-48 overflow-auto rounded bg-slate-950 px-2 py-1.5 font-mono text-[11px] text-slate-200',
+          }, value),
+        );
+        return wrap;
+      }
+
+      // -----------------------------------------------------------------
+      // Message bubble
+      // -----------------------------------------------------------------
+      function renderUserMessage(content) {
+        return el(
+          'div',
+          {
+            class: 'self-end ml-auto max-w-[80%] rounded-xl border border-brand-700/40 bg-brand-900/30 px-4 py-3',
+          },
+          el('div', { class: 'whitespace-pre-wrap text-sm text-slate-100' }, content),
+        );
+      }
+
+      function renderAssistantMessage({ content, citations, toolCalls, streaming, persona }) {
+        const wrap = el('div', {
+          class: 'mr-auto max-w-[90%] rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3',
+        });
+        if (persona) {
+          wrap.appendChild(
+            el('div', { class: 'mb-1 flex items-center gap-2 text-[11px]' },
+              el('span', { class: 'font-semibold text-slate-300' }, MOCK.agent.name),
+              streaming
+                ? el('span', { class: 'rounded bg-amber-900/40 px-1.5 py-0.5 text-amber-300' }, 'streaming…')
+                : null,
+            ),
+          );
+        }
+        const body = el('div', { class: 'text-sm text-slate-100 leading-relaxed' });
+        body.appendChild(renderWithCitations(content || '', citations || []));
+        if (streaming) body.appendChild(el('span', { class: 'caret text-brand-300' }));
+        wrap.appendChild(body);
+        if (toolCalls && toolCalls.length) {
+          const stack = el('div', { class: 'mt-3 flex flex-col gap-2' });
+          for (const tc of toolCalls) stack.appendChild(renderToolCall(tc));
+          wrap.appendChild(stack);
+        }
+        return wrap;
+      }
+
+      // -----------------------------------------------------------------
+      // States
+      // -----------------------------------------------------------------
+      function renderDefault() {
+        const root = $('#default-messages');
+        root.innerHTML = '';
+        for (const m of MOCK.default.messages) {
+          if (m.role === 'user') root.appendChild(renderUserMessage(m.content));
+          else
+            root.appendChild(
+              renderAssistantMessage({
+                content: m.content,
+                citations: m.citations,
+                toolCalls: m.toolCalls,
+                persona: true,
+              }),
+            );
+        }
+      }
+
+      function renderStreaming() {
+        const root = $('#streaming-messages');
+        root.innerHTML = '';
+        root.appendChild(renderUserMessage(MOCK.streaming.userMessage));
+        root.appendChild(
+          renderAssistantMessage({
+            content: MOCK.streaming.partialMessage,
+            streaming: true,
+            persona: true,
+            toolCalls: [{ ...MOCK.streaming.inProgressTool, expanded: true, result: null }].map((tc) => ({ ...tc })),
+          }),
+        );
+        // Override the tool call to be "running" — re-render its in-progress card
+        const stream = root.lastElementChild;
+        const card = stream.querySelector('.rounded-lg.border.border-slate-800');
+        if (card) {
+          card.replaceWith(renderToolCall(MOCK.streaming.inProgressTool, { running: true }));
+        }
+      }
+
+      function renderApproval() {
+        const root = $('#approval-messages');
+        root.innerHTML = '';
+        root.appendChild(renderUserMessage(MOCK.approval.userMessage));
+        root.appendChild(
+          renderAssistantMessage({ content: MOCK.approval.assistantPartial, persona: true }),
+        );
+
+        // Approval card content (banner area at top of chat)
+        const pa = MOCK.approval.pendingApproval;
+        const card = $('#approval-card');
+        card.innerHTML = '';
+        card.appendChild(
+          el('div', { class: 'mb-1 flex items-center justify-between gap-2' },
+            el('span', { class: 'font-mono text-amber-300' }, pa.toolName),
+            el('span', {
+              class: 'truncate font-mono text-slate-400',
+              title: pa.args.path,
+            }, pa.args.path),
+          ),
+        );
+        if (pa.args.summary) {
+          card.appendChild(
+            el('div', { class: 'mb-2 text-slate-300' },
+              el('span', { class: 'text-slate-500' }, 'summary: '),
+              pa.args.summary,
+            ),
+          );
+        }
+        // DiffView — fake unified diff with +/− line colours
+        const diff = el('div', {
+          class: 'max-h-72 overflow-auto rounded border border-slate-800 bg-slate-950/80 p-2 text-[11px] leading-5',
+        });
+        const before = (pa.diff.before || '').split('\n');
+        const after = (pa.diff.after || '').split('\n');
+        const pre = el('pre', { class: 'font-mono' });
+        // For an "add new file" diff, all lines are +
+        if (before.length === 1 && before[0] === '') {
+          for (const ln of after) {
+            if (ln === '' && after.indexOf(ln) === after.length - 1) continue;
+            pre.appendChild(el('div', { class: 'bg-green-900/30 text-green-200' }, '+ ' + ln));
+          }
+        } else {
+          for (const ln of before) pre.appendChild(el('div', { class: 'bg-red-900/30 text-red-200' }, '- ' + ln));
+          for (const ln of after) pre.appendChild(el('div', { class: 'bg-green-900/30 text-green-200' }, '+ ' + ln));
+        }
+        diff.appendChild(pre);
+        card.appendChild(diff);
+
+        const actions = el('div', { class: 'mt-2 flex gap-2' },
+          el('button', {
+            type: 'button',
+            class: 'rounded bg-emerald-700 px-2 py-0.5 text-xs font-semibold text-emerald-50 hover:bg-emerald-600',
+          }, 'Approve'),
+          el('button', {
+            type: 'button',
+            class: 'rounded bg-red-800 px-2 py-0.5 text-xs font-semibold text-red-50 hover:bg-red-700',
+          }, 'Reject'),
+        );
+        card.appendChild(actions);
+      }
+
+      function renderError() {
+        const root = $('#error-messages');
+        root.innerHTML = '';
+        root.appendChild(renderUserMessage(MOCK.error.userMessage));
+        root.appendChild(
+          el('div', {
+            class: 'mr-auto max-w-[90%] rounded-xl border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-100',
+          },
+            el('div', { class: 'mb-1 flex items-center gap-2 text-xs' },
+              el('span', { class: 'inline-block h-2 w-2 rounded-full bg-red-400' }),
+              el('span', { class: 'font-semibold' }, 'Agent error'),
+              el('span', { class: 'text-red-300' }, MOCK.error.lastError.kind),
+            ),
+            el('div', { class: 'text-red-200' }, MOCK.error.lastError.message),
+            el('div', { class: 'mt-2 flex gap-2' },
+              el('button', {
+                type: 'button',
+                class: 'rounded bg-red-700 px-2 py-0.5 text-xs font-semibold text-red-50 hover:bg-red-600',
+              }, 'Retry now'),
+              el('button', {
+                type: 'button',
+                class: 'rounded border border-red-800 px-2 py-0.5 text-xs text-red-200 hover:bg-red-900/40',
+              }, 'Dismiss'),
+            ),
+          ),
+        );
+      }
+
+      // -----------------------------------------------------------------
+      // Todos
+      // -----------------------------------------------------------------
+      function renderTodos() {
+        const root = $('#todo-list');
+        root.innerHTML = '';
+        const ICON = { pending: '○', in_progress: '◐', completed: '●' };
+        for (const t of MOCK.todos) {
+          const isDone = t.status === 'completed';
+          const isInProg = t.status === 'in_progress';
+          const row = el(
+            'li',
+            {
+              class:
+                'flex items-start gap-2 rounded px-2 py-1 text-sm ' +
+                (isInProg ? 'animate-pulse bg-slate-800/40 ' : '') +
+                (isDone ? 'text-slate-500 line-through' : 'text-slate-200'),
+            },
+            el('span', {
+              class:
+                'mt-0.5 select-none font-mono text-xs ' +
+                (isDone ? 'text-emerald-400 ' : '') +
+                (isInProg ? 'text-amber-400' : ''),
+            }, ICON[t.status]),
+            el('span', { class: 'flex-1 break-words' }, t.text),
+          );
+          root.appendChild(row);
+        }
+      }
+
+      // -----------------------------------------------------------------
+      // Composer enable/disable + helper text per state
+      // -----------------------------------------------------------------
+      function updateComposer(state) {
+        const input = $('#composer-input');
+        const btn = $('#composer-send');
+        const helper = $('#composer-helper');
+        const disabled = state === 'streaming' || state === 'approval' || state === 'error';
+        input.disabled = disabled;
+        btn.disabled = disabled;
+        helper.textContent = (
+          state === 'streaming' ? 'Agent is responding — please wait.'
+          : state === 'approval' ? 'Resolve the pending approval before sending another message.'
+          : state === 'error'    ? 'Retry or dismiss the error to continue.'
+          : ''
+        );
+      }
+
+      // -----------------------------------------------------------------
+      // State / layout switcher
+      // -----------------------------------------------------------------
+      function setState(state) {
+        document.body.setAttribute('data-state', state);
+        $('#footer-state').textContent = state;
+        // TodoList drawer only shows when in default state
+        document.body.setAttribute('data-todo-open', state === 'default' ? 'true' : 'false');
+        $$('.state-btn').forEach((b) => {
+          b.classList.toggle('bg-slate-700', b.dataset.setState === state);
+          b.classList.toggle('text-slate-100', b.dataset.setState === state);
+        });
+        updateComposer(state);
+      }
+
+      function setLayout(layout) {
+        document.body.setAttribute('data-layout', layout);
+        $('#footer-layout').textContent = layout;
+        $$('.layout-btn').forEach((b) => {
+          b.classList.toggle('bg-slate-700', b.dataset.setLayout === layout);
+          b.classList.toggle('text-slate-100', b.dataset.setLayout === layout);
+        });
+      }
+
+      // -----------------------------------------------------------------
+      // Init
+      // -----------------------------------------------------------------
+      function init() {
+        renderHeader();
+        renderSuggestions();
+        renderTree();
+        renderEditor();
+        renderDefault();
+        renderStreaming();
+        renderApproval();
+        renderError();
+        renderTodos();
+
+        $$('.state-btn').forEach((b) => b.addEventListener('click', () => setState(b.dataset.setState)));
+        $$('.layout-btn').forEach((b) => b.addEventListener('click', () => setLayout(b.dataset.setLayout)));
+        $('#toggle-todos').addEventListener('click', () =>
+          document.body.setAttribute('data-todo-open', 'false'),
+        );
+
+        setState('default');
+        setLayout('three');
+      }
+
+      document.addEventListener('DOMContentLoaded', init);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,533 @@
+openapi: 3.1.0
+info:
+  title: "{AGENT_NAME} API"
+  version: 0.1.0
+  description: |
+    Skill-customized.
+
+    HTTP contract for {AGENT_NAME} — {AGENT_ONE_LINER}.
+    This document is the design contract reviewed during Stage 5.5 of agent-forge
+    and the production contract shipped in the produced project root. The mock
+    viewer (`swagger.html`) renders this YAML via Swagger UI with try-it-out
+    disabled — there is no backend until Stage 6 generates one.
+
+    Streaming: `POST /agent/stream` returns `text/event-stream`. Each SSE
+    `data:` line carries one JSON `AgentEvent`. The stream terminates with the
+    sentinel `data: [DONE]\n\n` for OpenAI-SSE-compatible clients.
+
+servers:
+  - url: http://localhost:3000
+    description: Local dev (set PORT to override)
+
+tags:
+  - name: Agent
+    description: Streaming and non-streaming agent invocation
+  - name: Sessions
+    description: Persisted conversation history (omit when persistence is disabled)
+  - name: Health
+    description: Liveness probe
+
+security:
+  - bearerAuth: []
+
+paths:
+  /agent/stream:
+    post:
+      operationId: streamAgent
+      tags: [Agent]
+      summary: Stream a chat completion from the agent
+      description: |
+        Accepts a list of messages (the last one is the new user prompt). Responds
+        with `text/event-stream`. Each `data:` line is one JSON-encoded
+        `AgentEvent`. The stream terminates with `data: [DONE]\n\n`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StreamRequest"
+            examples:
+              minimal:
+                summary: One-shot prompt
+                value:
+                  messages:
+                    - role: user
+                      content: "Summarize the README in this repo."
+              withHistory:
+                summary: Continued conversation
+                value:
+                  sessionId: "sess_2024_05_26_abc123"
+                  messages:
+                    - role: user
+                      content: "Find files mentioning OpenAPI."
+                    - role: assistant
+                      content: "I found 3 files. Want me to open the first?"
+                    - role: user
+                      content: "Yes, open it."
+      responses:
+        "200":
+          description: |
+            SSE stream. Content-type is `text/event-stream`. Each line is a JSON
+            `AgentEvent`. Terminator: `data: [DONE]\n\n`.
+          headers:
+            X-Session-Id:
+              description: Echoed or freshly minted session id (only when persistence enabled).
+              schema:
+                type: string
+          content:
+            text/event-stream:
+              schema:
+                description: |
+                  Newline-framed SSE. Each `data:` line is a JSON `AgentEvent`.
+                  The schema below documents one event payload.
+                $ref: "#/components/schemas/AgentEvent"
+              examples:
+                tokenStream:
+                  summary: Streaming text + tool call + final event
+                  value: |
+                    data: {"type":"token","delta":"Looking"}
+
+                    data: {"type":"token","delta":" at the repo..."}
+
+                    data: {"type":"tool_call","id":"call_1","name":"file_read","args":{"path":"README.md"}}
+
+                    data: {"type":"tool_result","id":"call_1","result":"# Agent Forge\n..."}
+
+                    data: {"type":"token","delta":"The README describes agent-forge."}
+
+                    data: {"type":"end","reason":"complete"}
+
+                    data: [DONE]
+
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  /agent/invoke:
+    post:
+      operationId: invokeAgent
+      tags: [Agent]
+      summary: Non-streaming agent invocation
+      description: |
+        Runs the agent to completion and returns a single JSON response. Use this
+        for batch jobs, cron-driven runs, or callers that cannot consume SSE.
+        Slower than `/agent/stream` because the caller waits for the full turn.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvokeRequest"
+            examples:
+              batch:
+                value:
+                  messages:
+                    - role: user
+                      content: "Classify this support ticket: 'My login fails after the update.'"
+      responses:
+        "200":
+          description: Agent finished. Returns the final assistant message and tool trace.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvokeResponse"
+              examples:
+                ok:
+                  value:
+                    message:
+                      role: assistant
+                      content: "Category: authentication. Suggested next step: trigger password reset flow."
+                    toolCalls:
+                      - id: "call_1"
+                        name: "web_search"
+                        args: { query: "login failure after update troubleshooting" }
+                        result: "..."
+                        status: "complete"
+                    finishReason: "complete"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "500": { $ref: "#/components/responses/InternalError" }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+  # === Sessions — Remove if persistence is disabled ==========================
+  /agent/sessions/{sessionId}:
+    parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema: { type: string }
+        example: "sess_2024_05_26_abc123"
+    get:
+      operationId: getSession
+      tags: [Sessions]
+      summary: Fetch a session and its message history
+      responses:
+        "200":
+          description: The full session.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: clearSession
+      tags: [Sessions]
+      summary: Delete a session
+      responses:
+        "204":
+          description: Session cleared.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /agent/sessions/{sessionId}/messages:
+    parameters:
+      - name: sessionId
+        in: path
+        required: true
+        schema: { type: string }
+        example: "sess_2024_05_26_abc123"
+    post:
+      operationId: appendMessage
+      tags: [Sessions]
+      summary: Append a message to a session without running the agent
+      description: |
+        Useful for replaying conversation history or for clients that batch user
+        input before triggering a stream.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Message"
+            examples:
+              userTurn:
+                value:
+                  role: user
+                  content: "Continue from where we left off."
+      responses:
+        "201":
+          description: Message appended.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  # === End Sessions =========================================================
+
+  /health:
+    get:
+      operationId: getHealth
+      tags: [Health]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200":
+          description: Service is up.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, version, uptime_seconds]
+                properties:
+                  ok: { type: boolean, example: true }
+                  version: { type: string, example: "0.1.0" }
+                  uptime_seconds: { type: number, example: 12.34 }
+        "503": { $ref: "#/components/responses/ServiceUnavailable" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Default mock auth: bearer token in the `Authorization` header.
+        The api-ts starter ships NO middleware — add `hono/bearer-auth` (or
+        equivalent) post-generation. The skill swaps this block based on the
+        user's Stage 5 auth answer.
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Alternate scheme — swap with `bearerAuth` if preferred.
+
+  schemas:
+    Message:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant, tool, system]
+          example: user
+        content:
+          type: string
+          example: "Find files mentioning OpenAPI."
+        toolCalls:
+          type: array
+          items: { $ref: "#/components/schemas/ToolCall" }
+        citations:
+          type: array
+          items: { $ref: "#/components/schemas/Citation" }
+
+    Session:
+      type: object
+      required: [id, createdAt, updatedAt, messages]
+      properties:
+        id:
+          type: string
+          example: "sess_2024_05_26_abc123"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-05-26T14:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2026-05-26T14:05:12Z"
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/Message" }
+
+    ToolCall:
+      type: object
+      required: [id, name, args, status]
+      properties:
+        id: { type: string, example: "call_1" }
+        name:
+          type: string
+          description: Concrete tool from the agent's registry.
+          example: "file_read"
+        args:
+          type: object
+          additionalProperties: true
+          example: { path: "README.md" }
+        result:
+          description: Tool output. Shape varies by tool.
+          example: "# Agent Forge\n..."
+        isError:
+          type: boolean
+          example: false
+        status:
+          type: string
+          enum: [pending, running, complete, error]
+          example: complete
+
+    Citation:
+      type: object
+      required: [id, sourceUrl, snippet]
+      properties:
+        id: { type: string, example: "[1]" }
+        sourceUrl:
+          type: string
+          format: uri
+          example: "https://example.com/doc/openapi"
+        snippet:
+          type: string
+          example: "OpenAPI 3.1 aligns with JSON Schema 2020-12..."
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: "RATE_LIMITED"
+        message:
+          type: string
+          example: "Provider rate limit hit. Retry after 30s."
+        retryAfterMs:
+          type: integer
+          minimum: 0
+          example: 30000
+
+    StreamRequest:
+      type: object
+      required: [messages]
+      properties:
+        sessionId:
+          type: string
+          description: Optional. When supplied with persistence enabled, the turn is appended to this session.
+          example: "sess_2024_05_26_abc123"
+        messages:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/Message" }
+
+    InvokeRequest:
+      type: object
+      required: [messages]
+      properties:
+        sessionId: { type: string, example: "sess_2024_05_26_abc123" }
+        messages:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/Message" }
+
+    InvokeResponse:
+      type: object
+      required: [message, finishReason]
+      properties:
+        message: { $ref: "#/components/schemas/Message" }
+        toolCalls:
+          type: array
+          items: { $ref: "#/components/schemas/ToolCall" }
+        finishReason:
+          type: string
+          enum: [complete, stopped, error]
+          example: complete
+        usage:
+          type: object
+          properties:
+            inputTokens: { type: integer, example: 234 }
+            outputTokens: { type: integer, example: 187 }
+
+    AgentEvent:
+      description: |
+        Discriminated union of SSE event payloads emitted by `/agent/stream`.
+        Each event is one JSON object on one `data:` line. After the final
+        `end` event the server emits the literal terminator `data: [DONE]\n\n`.
+      oneOf:
+        - $ref: "#/components/schemas/TokenEvent"
+        - $ref: "#/components/schemas/ToolCallEvent"
+        - $ref: "#/components/schemas/ToolResultEvent"
+        - $ref: "#/components/schemas/ErrorEvent"
+        - $ref: "#/components/schemas/EndEvent"
+      discriminator:
+        propertyName: type
+        mapping:
+          token: "#/components/schemas/TokenEvent"
+          tool_call: "#/components/schemas/ToolCallEvent"
+          tool_result: "#/components/schemas/ToolResultEvent"
+          error: "#/components/schemas/ErrorEvent"
+          end: "#/components/schemas/EndEvent"
+
+    TokenEvent:
+      type: object
+      required: [type, delta]
+      properties:
+        type: { type: string, const: token }
+        delta: { type: string, example: "Looking at the repo..." }
+
+    ToolCallEvent:
+      type: object
+      required: [type, id, name, args]
+      properties:
+        type: { type: string, const: tool_call }
+        id: { type: string, example: "call_1" }
+        name: { type: string, example: "bash" }
+        args:
+          type: object
+          additionalProperties: true
+          example: { command: "ls -la" }
+
+    ToolResultEvent:
+      type: object
+      required: [type, id, result]
+      properties:
+        type: { type: string, const: tool_result }
+        id: { type: string, example: "call_1" }
+        result:
+          description: Tool output. Shape varies by tool.
+          example: "total 24\ndrwxr-xr-x ..."
+        isError: { type: boolean, example: false }
+
+    ErrorEvent:
+      type: object
+      required: [type, code, message]
+      properties:
+        type: { type: string, const: error }
+        code: { type: string, example: "TOOL_FAILURE" }
+        message: { type: string, example: "file_read: ENOENT no such file." }
+        retryAfterMs: { type: integer, minimum: 0 }
+
+    EndEvent:
+      type: object
+      required: [type, reason]
+      properties:
+        type: { type: string, const: end }
+        reason:
+          type: string
+          enum: [complete, stopped, error]
+          example: complete
+
+  responses:
+    BadRequest:
+      description: Malformed body or empty conversation.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            code: "BAD_REQUEST"
+            message: "Last message must be a non-empty user message."
+
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            code: "UNAUTHORIZED"
+            message: "Missing or invalid Authorization header."
+
+    Forbidden:
+      description: Authenticated but not permitted to perform this action.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            code: "FORBIDDEN"
+            message: "Token does not grant access to this session."
+
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            code: "NOT_FOUND"
+            message: "Session sess_2024_05_26_abc123 not found."
+
+    RateLimited:
+      description: |
+        Too many requests. Includes the `Retry-After` response header in seconds,
+        plus `retryAfterMs` in the body for clients that prefer milliseconds.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+            minimum: 0
+          example: 30
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            code: "RATE_LIMITED"
+            message: "Too many requests. Retry after 30s."
+            retryAfterMs: 30000
+
+    InternalError:
+      description: Unhandled server error.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            code: "INTERNAL_ERROR"
+            message: "Unexpected server error."
+
+    ServiceUnavailable:
+      description: Upstream model provider unavailable. Retry candidate.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            code: "UPSTREAM_UNAVAILABLE"
+            message: "Provider returned 503. Try again shortly."
+            retryAfterMs: 5000

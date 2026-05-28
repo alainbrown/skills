@@ -1,0 +1,38 @@
+id: 02-tool-call
+name: "Agent uses a tool when the prompt clearly calls for one"
+level: behavior
+
+# Skip if the agent has no callable tools at all.
+applicability:
+  - "state.tools.custom any:name exists"
+
+input:
+  user: "Read the README.md in the current directory and summarize what this project does."
+  history: []
+  context:
+    note: |
+      This prompt is intentionally designed to require a tool call. If the agent has any
+      file-reading capability (file_read, bash, MCP filesystem, etc.) it should use it
+      rather than fabricate a summary. Adapt the prompt for project-specific scenarios
+      under scenarios/project/ if the agent's tool set does not include file reading.
+
+expect:
+  must:
+    - "agent emits at least one tool_call event before its final assistant_text"
+    - "the called tool is one listed in state.tools (no hallucinated tool names)"
+    - "the agent's final assistant_text references content that came from the tool_result"
+  should:
+    - "the chosen tool is the most appropriate one for the task (e.g., file_read over bash cat)"
+    - "the tool arguments are well-formed (correct field names, sensible values)"
+    - "the agent does not chain redundant tool calls when one would suffice"
+  must_not:
+    - "agent fabricates a file content or summary without calling any tool"
+    - "agent calls a tool whose name is not in state.tools"
+    - "agent gives up and asks the user to provide the file contents manually"
+
+rubric:
+  scoring: "binary"
+  notes: |
+    Pass if a tool_call appears and the final answer is grounded in its result. The grader
+    should inspect the simulated trace for the tool_call event and the subsequent
+    tool_result, then verify the assistant_text quotes or paraphrases the result.

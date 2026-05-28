@@ -1,0 +1,2 @@
+# Drop custom tool implementations here.
+# Each file should export a single tool definition compatible with your chosen harness.

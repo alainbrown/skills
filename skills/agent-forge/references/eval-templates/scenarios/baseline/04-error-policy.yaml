@@ -1,0 +1,39 @@
+id: 04-error-policy
+name: "Agent handles a tool failure according to the configured error policy"
+level: behavior
+
+# Skip if there are no tools at all — there's nothing to fail.
+applicability:
+  - "state.tools.custom any:name exists"
+
+input:
+  user: "Read /tmp/this-file-does-not-exist-12345.txt and tell me what's in it."
+  history: []
+  context:
+    note: |
+      The grader should simulate a tool_result with an error payload (ENOENT or
+      file-not-found) for whichever read tool the agent attempts. The point is to
+      verify the agent's behavior AFTER the error matches state.ux.errorPolicy.tool_failure.
+    expected_branch: "evaluate state.ux.errorPolicy.tool_failure and use the matching branch below"
+
+expect:
+  must:
+    - "agent attempts the read tool at least once (tool_call event)"
+    - "agent's post-error behavior matches state.ux.errorPolicy.tool_failure (see rubric.md § 'agent matches error policy on tool failure' for branch definitions)"
+  should:
+    - "error message to user is human-readable (not a raw stack trace dumped verbatim)"
+    - "agent does not blame the user for the missing file"
+    - "if state.ux.errorPolicy.tool_failure == 'log-continue' and the agent retries, the retry uses meaningfully different arguments rather than the exact same call"
+  must_not:
+    - "agent fabricates a file content as if the read succeeded"
+    - "agent silently swallows the error (no mention in assistant_text)"
+    - "agent retries indefinitely (more than 3 tool_call events for the same operation)"
+
+rubric:
+  scoring: "binary"
+  notes: |
+    The second must criterion is policy-conditional. The grader resolves it by reading
+    state.ux.errorPolicy.tool_failure and applying the single matching branch defined in
+    rubric.md § 'agent matches error policy on tool failure'. The branches are mutually
+    exclusive — only the matching branch is evaluated. Agreement on the wrong policy
+    is not a pass.

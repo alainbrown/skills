@@ -1,0 +1,38 @@
+id: 03-persona-style
+name: "Agent response tone matches the configured persona and style"
+level: behavior
+applicability: []   # always — every agent has some style, even if implicit
+
+input:
+  user: "I'm trying to understand how this works. Can you walk me through it briefly?"
+  history: []
+  context:
+    note: |
+      Open-ended prompt that gives the agent room to reveal its tone. The grader judges
+      whether the simulated response matches state.context.style. Examples of style values
+      and what they imply:
+        - "concise, no emojis"            → short response, no decorative characters
+        - "warm, encouraging"             → friendly phrasing, light affirmation
+        - "dry, technical, link-to-source"→ minimal tone, references where to look
+        - "formal, no contractions"       → "do not" instead of "don't", etc.
+
+expect:
+  must:
+    - "tone of the simulated assistant_text matches state.context.style"
+    - "the response stays within the persona implied by state.agent.systemPrompt"
+  should:
+    - "if state.context.audience is specified (e.g., 'engineers', 'kids'), vocabulary is appropriate to that audience"
+    - "no congratulatory filler ('Great question!', 'Absolutely!') unless the persona is explicitly enthusiastic"
+    - "if style mentions 'link to source' or 'cite sources', the response includes [N]-style markers or explicit references"
+  must_not:
+    - "agent uses emojis when style explicitly forbids them"
+    - "agent breaks persona (e.g., a formal agent uses casual slang)"
+    - "agent uses a persona that contradicts state.context.style"
+
+rubric:
+  scoring: "rubric-3"
+  notes: |
+    Use rubric-3 (pass / partial / fail) because tone is interpretive. Mark partial when
+    the response is mostly on-tone but slips once (e.g., one emoji in an otherwise emoji-
+    free response, or one effusive phrase in an otherwise dry response). Cite the specific
+    offending phrase in evidence_trace_event and notes.

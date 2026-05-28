@@ -1,0 +1,40 @@
+id: 05-streaming
+name: "Agent emits its response progressively when streaming is enabled"
+level: behavior
+
+# Skip if streaming is explicitly off.
+applicability:
+  - "state.ux.streaming != 'none'"
+
+input:
+  user: "Explain in three short paragraphs what makes a good code review."
+  history: []
+  context:
+    note: |
+      A prompt that produces a multi-paragraph response. The grader checks that the
+      simulated trace shows the response arriving as multiple assistant_text events
+      (token-level or message-level), not as one monolithic event. The grader cannot
+      directly observe timing — what it CAN check is event granularity in the simulated trace.
+
+expect:
+  must:
+    - "the simulated trace contains at least two assistant_text events for the response"
+    - "OR the trace contains a single assistant_text event annotated with '(streamed in N chunks)' where N >= 2"
+    - "if state.ux.streaming == 'token', the trace shows fine-grained chunks (sub-sentence)"
+    - "if state.ux.streaming == 'message', the trace may show whole-message chunks but must still have multiple events for a multi-paragraph response"
+  should:
+    - "no tool_call interrupts a streamed paragraph mid-sentence (tool calls should bracket text events cleanly)"
+  must_not:
+    - "the trace shows the entire multi-paragraph response as a single monolithic assistant_text event when streaming is enabled"
+    - "the trace shows a 'flush' or 'buffer dump' event indicating the agent buffered the whole response before emitting"
+
+rubric:
+  scoring: "binary"
+  notes: |
+    The grader is simulating, so timing is inferred from event structure. The key signal
+    is event granularity: monolithic single-event responses fail this scenario; multiple
+    events (or an explicit chunked annotation) pass. This baseline check catches the
+    common bug where streaming is configured but the interface buffers before emitting —
+    though that bug usually shows up at the real-model level. Failures here typically
+    mean the agent's design has streaming disabled at the harness level even though
+    state.ux.streaming != 'none'.
