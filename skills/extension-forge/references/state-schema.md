@@ -42,13 +42,25 @@ every step, deleted in `done`.
   "cws": { "privacyDone": false, "justificationsDone": false },
   "demo": { "rendered": false, "assets": [] },
   "repo": { "workflowsDone": false, "badges": false, "gitInit": false },
+  "conform": {
+    "branch": "chore/conform-layout",
+    "plan": [
+      { "aspect": "build output", "current": "extension/app/", "canonical": "dist/", "action": "retarget" },
+      { "aspect": "assets", "current": "docs/cws/", "canonical": "docs/store/", "action": "move" },
+      { "aspect": "version source", "current": "manifest.json", "canonical": "package.json", "action": "move" },
+      { "aspect": "release trigger", "current": "workflow_run", "canonical": "reusable workflow_call gate", "action": "replace" }
+    ],
+    "preserve": ["check:marketing asset-ref step"],
+    "moves": []
+  },
   "decisions": {}
 }
 ```
 
 ## Field notes
 
-- `scope`: `"new"` (scaffold extension + launch kit) or `"wrap"` (existing extension; add only what's missing).
+- `scope`: `"new"` (scaffold extension + launch kit), `"wrap"` (existing extension; add only what's missing), or `"conform"` (existing, already-equipped extension; normalize layout/workflows to `references/conventions.md` — moves files + swaps workflows on a branch, never rewrites code).
+- `conform`: only present for `scope: conform`. `branch` (the working branch), `plan` (the conformance table from `conform_assess`), `preserve` (repo-specific steps to keep), `moves` (applied relocations). Survives so a multi-repo conform run can resume.
 - `extension.surfaces`: any of `popup`, `sidePanel`, `options`, `contentScript`, `newTab`, `contextMenu`. Each maps to a manifest key + a starter sub-directory.
 - `extension.permissions` / `hostPermissions`: every entry must trace to a feature AND have a matching block in `references/permissions-reference.md`. Over-broad → CWS rejection.
 - `context.demoBeats`: 3-6 moments → become Remotion scenes in the demo.

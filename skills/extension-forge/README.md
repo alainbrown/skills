@@ -25,8 +25,14 @@ rather than generating fragile boilerplate from memory:
    palette-optimized `demo.gif`, and every Chrome Web Store asset at exact dimensions, reusing the
    extension's live components (no UI drift).
 
-It works on a **fresh idea** (scaffolds the extension) or **wraps an existing extension** (adds
-only what's missing, never overwriting working code).
+It works three ways:
+- **`new`** — scaffold a fresh extension + full launch kit from a description.
+- **`wrap`** — add only the missing launch pieces to an existing extension, never overwriting code.
+- **`conform`** — normalize an existing, already-equipped extension to a consistent canonical layout
+  + workflows (assets → `docs/`/`docs/store/`, build → `dist/`, unified test/release/package
+  pipeline). Reorganizes structure on a branch with `git mv`; classifies each change as *mechanical*
+  (safe move) vs *structural* (build-philosophy migration — opt-in) and preserves intentional
+  divergences (e.g. a macOS WebGPU runner, deliberate CWS auto-publish). Never rewrites feature code.
 
 ## Features
 
@@ -97,5 +103,6 @@ extension-forge/
     ├── cws/                       PRIVACY.md · cws-justifications.md · package-extension.sh
     ├── marketing/                 optional GitHub Pages landing page
     ├── permissions-reference.md   per-permission justifications + privacy lines + audit grep-map
+    ├── conventions.md             canonical layout/workflow standard (the conform target)
     ├── asset-spec.md · fragile-patterns.md · readme-template.md · state-schema.md
 ```

@@ -8,11 +8,15 @@ description: >
   reproducible demo video (demo.mp4 + palette-optimized GIF) plus all CWS marketing assets
   (icons, 1280×800 screenshots, 1400×560 marquee, 440×280 promo tile, 1280×720 YouTube
   thumbnail), a badged README, and GitHub Actions that test on every change and cut a GitHub
-  Release on version bump + passing tests. Works on a fresh idea OR wraps an existing extension
-  directory. Use when the user says "create a chrome extension", "build a browser extension",
-  "publish to the chrome web store", "make a chrome extension with a demo video", "set up CWS
-  assets", "package my extension for the store", "ship my extension", or "add a demo + release
-  pipeline to my extension".
+  Release on version bump + passing tests. Works on a fresh idea (scaffold), wraps an existing
+  extension (add what's missing), OR conforms an existing, already-equipped extension to a
+  consistent canonical layout + workflows (reorganize assets into docs/, retarget the build to
+  dist/, unify the test/release/package pipeline). Use when the user says "create a chrome
+  extension", "build a browser extension", "publish to the chrome web store", "make a chrome
+  extension with a demo video", "set up CWS assets", "package my extension for the store", "ship
+  my extension", "add a demo + release pipeline to my extension", "standardize/normalize my
+  extension(s)", "make my extensions consistent", "put the assets in a consistent spot", or
+  "fix/standardize my test and release workflow".
 ---
 
 # Extension Forge
@@ -33,11 +37,11 @@ the build. Written at the user's repo root (NOT the skills repo).
 - **Read before each step.** Refresh context, especially after compression.
 - **Clean up when the produced extension boots + assets render.** Delete `.forge-state.json` at the end.
 
-Schema in `references/state-schema.md`. Key fields: `phase`, `mode`, `scope` (new | wrap),
+Schema in `references/state-schema.md`. Key fields: `phase`, `mode`, `scope` (new | wrap | conform),
 `project` (path, name, packageManager), `extension` (oneLiner, coreFeature, surfaces, permissions,
 hostPermissions), `context` (audience, tone, brandColor, demoBeats), `options` (iconAutoGen,
 macosRunner, marketingPage), `cws` (justificationsDone, privacyDone), `demo` (rendered, assets),
-`repo` (workflowsDone, badges), `decisions`.
+`repo` (workflowsDone, badges), `conform` (branch, plan, moves), `decisions`.
 </core_principle>
 
 ## Two starters (the copy-customize model)
@@ -72,6 +76,7 @@ CWS templates) lives as real files — never re-derived from memory.
 | `references/readme-template.md` | README skeleton + badge block | `repo_setup` |
 | `references/marketing/` | Optional static landing page + `deploy.yml` (only if `options.marketingPage`) | `repo_setup` |
 | `references/fragile-patterns.md` | Known-fragile @crxjs / Remotion / MV3 bits → suggest docs lookup, flag `// TODO: verify` | `scaffold_extension`, `demo` |
+| `references/conventions.md` | The canonical layout / version / workflow / packaging standard a repo is normalized to (keeptidy is the reference) + the conformance-table shape | `conform_assess`, `conform_apply` |
 
 ## Architecture (the produced extension repo)
 
@@ -100,15 +105,56 @@ CWS templates) lives as real files — never re-derived from memory.
 
 Read `.forge-state.json` if it exists (resuming). Otherwise create it.
 
-**Detect scope** — is the user pointing at an existing extension or starting fresh?
-- An existing `manifest.json` / `manifest.config.ts` / `src/` with extension code in the target dir → `scope: wrap`. Read the manifest and code; pre-fill `state.extension` from it. The skill ADDS what's missing (CWS docs, demo, assets, workflows, README) and never overwrites working code.
+**Detect scope** — three paths:
 - A fresh idea / empty dir → `scope: new`. The skill scaffolds the extension too.
+- An existing extension that is MISSING launch pieces (no demo / CWS docs / CI / assets) → `scope: wrap`. Read the manifest and code; pre-fill `state.extension`. The skill ADDS what's missing and never overwrites working code.
+- An existing, already-equipped extension the user wants STANDARDIZED — assets in a consistent spot, build dir / version source / workflows unified to the canonical convention → `scope: conform`. The user says things like "make my extensions consistent", "normalize the layout", "fix my release workflow". This path reorganizes structure (it does not add features).
 
-If ambiguous, ask. Confirm `state.project.path` (default `<cwd>/<name>/` for new; the existing dir for wrap).
+If ambiguous, ask which of the three. Tell the user plainly: `wrap` adds missing pieces without touching code; `conform` moves files and rewrites workflows to a standard (on a branch). Confirm `state.project.path` (default `<cwd>/<name>/` for new; the existing dir otherwise).
 
 **Mode** (if not already set): `interactive` (pause + confirm each step) or `auto` (recommended defaults, one batch confirm). Store in state.
 
-▶ Next: `identify`
+▶ Next: `identify` (new / wrap) or `conform_assess` (conform)
+</step>
+
+<step name="conform_assess">
+**(`scope: conform` only) Diff the existing repo against the canonical conventions and produce a migration plan. Read-only — no changes yet.**
+
+Read `references/conventions.md` (the canonical standard) and `references/asset-spec.md`. Then inventory the actual repo:
+- Where marketing assets currently live (vs `docs/` + `docs/store/`).
+- The build output dir (vs `dist/`).
+- The version source of truth — `package.json` vs `manifest.json` (vs `package.json`).
+- The workflow files and their **trigger patterns** (e.g. `workflow_run` chaining vs the canonical reusable `workflow_call` gate); whether release detects a version bump and is gated on tests.
+- Whether packaging exists (`scripts/package-extension.sh`) and what it zips.
+- README badges and asset links that will need repointing.
+
+Also run the **permission audit** (`references/permissions-reference.md` § "Permission audit") — "tests/releases/packages as expected" includes a clean permission set.
+
+Produce the **conformance table** (`aspect | current | canonical | action | risk` where action ∈ move / retarget / replace / add / prune / ok). **Classify each action's risk:**
+- **mechanical** — a safe file move / rename / reference update / workflow swap with a contained blast radius (relocating assets, version-naming the zip, moving test dirs, replacing a `workflow_run` trigger with the reusable gate). Apply these freely.
+- **structural** — changes the build philosophy or version-source model (relocating the *build output dir* when the repo uses a static-manifest layout; inverting which file is the version source of truth). Present these as **explicit opt-in**, each with its blast radius spelled out — never bundle a build-system migration into a "tidy up the layout" request.
+
+A request like "put the assets in a consistent spot" or "fix my workflows" means the **mechanical** set; offer the structural items separately. **PRESERVE** repo-specific and intentional divergences rather than dropping them (e.g. a macOS WebGPU runner, a `check:marketing` asset-ref check, COOP/COEP headers, or a deliberately-enabled CWS auto-publish even though canonical is GitHub-Release-only). Present the full plan and get explicit approval before any change (in `auto` mode, apply the mechanical set and present the structural set). Save to `state.conform.plan`.
+
+▶ Next: `conform_apply`
+</step>
+
+<step name="conform_apply">
+**(`scope: conform` only) Apply the plan on a branch, preserving history, updating every reference. Move files and swap workflows — never rewrite feature code.**
+
+Apply the **mechanical** actions from the approved plan. Apply a **structural** action (build-dir relocation, version-source inversion) ONLY if the user explicitly opted into it; otherwise leave it in the summary as a recommended follow-up. Skip `preserve` items entirely.
+
+1. **Branch first.** `git switch -c chore/conform-layout` (or similar). NEVER reorganize on the main branch. Record the branch in `state.conform.branch`.
+2. **Move with history.** Use `git mv` for every relocation (assets → `docs/` + `docs/store/`, tests → `tests/`, etc.) so blame/history survive.
+3. **Retarget references** for each move: the build tool's output dir → `dist/` (vite/crxjs config + `.gitignore`), manifest icon paths, README asset links + badge URLs, marketing `<video>`/poster `src`, any `import`/path that pointed at an old location.
+4. **Unify version source** if needed: make `package.json` the source of truth; the manifest reads it. Update release detection to diff `package.json`.
+5. **Swap workflows** to the canonical `references/workflows/` (reusable `workflow_call` test gate + version-bump release), adapting to the repo's package manager + build command. **Preserve** the repo-specific steps flagged in `conform_assess`.
+6. **Add packaging** (`scripts/package-extension.sh`) if missing; ensure it zips `dist/`.
+7. **Apply permission-audit prunes** from `conform_assess`.
+
+Do file moves + reference updates + workflow swaps ONLY. Do not refactor feature logic or change architecture. After each batch of moves, sanity-check that imports/refs still resolve.
+
+Update `state.conform.moves`. ▶ Next: `verify`
 </step>
 
 <step name="identify">
@@ -218,6 +264,8 @@ Run in the project: `npm install`, `npm run build` (typecheck + build), `npm tes
 
 **Re-run the permission audit** (`references/permissions-reference.md` § "Permission audit") against the final code one last time — late-stage edits can leave a declared permission unused or call an undeclared API. The manifest's permission set must exactly match what the code uses.
 
+**For `scope: conform`:** the bar is *nothing broke*. Confirm the build still outputs to the canonical `dist/`, every moved asset resolves at its new path (no dead README/marketing links), the swapped workflows are valid YAML with the version-bump→test-gate→release wiring intact, `package-extension.sh` zips `dist/`, and tests still pass. Diff against the pre-conform state to confirm only files moved + references/workflows changed — no feature code was rewritten.
+
 Report a one-screen summary: build ✓/✗, unit/e2e pass-skip-fail, assets present, permission audit clean (no unused/undeclared), anything flagged `// TODO: verify`. If the build fails, diagnose and fix before `done` — never hand over an extension that doesn't build.
 
 ▶ Next: `done`
@@ -226,16 +274,23 @@ Report a one-screen summary: build ✓/✗, unit/e2e pass-skip-fail, assets pres
 <step name="done">
 **Wrap up.**
 
+**For `scope: new` / `wrap`:**
 - Print final summary: surfaces, permissions, where the repo lives, how to load it unpacked, how to render assets (if not already), how to publish (zip → CWS dashboard).
 - List the manual follow-ups CWS requires: create the listing, upload the zip + assets, paste the justifications, set the privacy-policy URL, then fill the README's CWS badge id.
 - Delete `.forge-state.json` from the user's project.
-- Offer to commit only if the user asks — it's their repo.
+
+**For `scope: conform`:**
+- Print the conformance summary: what moved where, what workflows changed, what was pruned, and the branch name.
+- Leave the work on its branch for review — show the user how to inspect the diff (`git diff main...HEAD --stat`) and suggest opening a PR. Keep `.forge-state.json` until the user merges or says done (so a multi-repo conform run can resume).
+
+- Offer to commit only if the user asks — it's their repo. (For conform, the moves are already on a branch; still don't commit/push unless asked.)
 </step>
 
 </process>
 
 <guardrails>
 - NEVER overwrite working code in `scope: wrap` — only add what's missing.
+- In `scope: conform`, NEVER reorganize on the main branch — always work on a branch, use `git mv` to preserve history, and re-verify build + tests after the moves. Conform ONLY moves files, updates references, and swaps workflows/packaging to the canonical standard — it NEVER rewrites feature logic or changes architecture. Preserve repo-specific workflow steps (e.g. a macOS WebGPU runner, an asset-ref check) rather than dropping them.
 - NEVER request permissions or host permissions the extension doesn't actually use — over-broad requests get CWS-rejected. Run the permission audit (grep the code per `permissions-reference.md`) and PRUNE anything unused; narrow `<all_urls>` to observed origins or switch to `activeTab`. Justify only the audited set.
 - NEVER put `chrome.*` calls inside presentational components — they must stay props-only so the demo can reuse them. Wire Chrome APIs in container components / the service worker.
 - NEVER write @crxjs / Remotion / MV3 boilerplate from memory when uncertain — the starters are authoritative; flag novel bits with `// TODO: verify` and suggest a docs lookup.
@@ -249,7 +304,8 @@ Report a one-screen summary: build ✓/✗, unit/e2e pass-skip-fail, assets pres
 
 <success_criteria>
 - [ ] `.forge-state.json` created and updated after each step
-- [ ] Scope detected (new vs wrap); existing code never overwritten
+- [ ] Scope detected (new / wrap / conform); existing code never overwritten (wrap) or rewritten (conform)
+- [ ] (conform) Conformance assessed against `references/conventions.md`; migration plan approved; applied on a branch with `git mv`; build + tests still pass; only files moved + workflows/refs changed
 - [ ] Identity captured: name, one-liner, core feature, surfaces, permissions + host permissions, brand, demo beats
 - [ ] Extension scaffolded (or wrapped) with MV3 manifest, picked surfaces, pure components, branded tokens, icons
 - [ ] Permission audit run: declared manifest reconciled against actual code use; unused permissions pruned, broad host patterns narrowed; audited set recorded
@@ -259,7 +315,5 @@ Report a one-screen summary: build ✓/✗, unit/e2e pass-skip-fail, assets pres
 - [ ] Marketing landing page scaffolded (option enabled)
 - [ ] Build verified: install + build + tests pass; unpacked load confirmed; assets present
 - [ ] Final summary + CWS manual follow-ups listed
-- [ ] `.forge-state.json` deleted from the user's project
+- [ ] `.forge-state.json` deleted from the user's project (build scopes) / conform branch left for review
 </success_criteria>
-</content>
-</invoke>
