@@ -1,0 +1,41 @@
+# FORGE: only include if marketing landing page enabled.
+# Deploys the static `marketing/` directory to GitHub Pages. Delete this file
+# if the project has no marketing site.
+name: Deploy to GitHub Pages
+
+# The marketing site is plain static HTML in `marketing/`. There is no build
+# step — this workflow uploads that directory directly as the Pages artifact.
+
+on:
+  push:
+    branches: [main]
+    # Only fire when the marketing site itself changes. Pushes that only
+    # touch src/, e2e/, etc. don't need a re-deploy.
+    paths:
+      - 'marketing/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: marketing
+      - id: deployment
+        uses: actions/deploy-pages@v4

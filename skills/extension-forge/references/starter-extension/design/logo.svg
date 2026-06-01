@@ -1,0 +1,13 @@
+<!-- FORGE: replace with the real logo. The brand color matches --brand in
+     tokens.css. `npm run icons` rasterizes this to public/icons/{16,32,48,128}.png -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="28" fill="#5258d8"/>
+  <rect x="34" y="34" width="60" height="60" rx="12" fill="#ffffff" opacity="0.16"/>
+  <text x="64" y="86"
+        font-family="Inter, system-ui, sans-serif"
+        font-weight="700"
+        font-size="64"
+        fill="#ffffff"
+        text-anchor="middle"
+        letter-spacing="-0.04em">F</text>
+</svg>

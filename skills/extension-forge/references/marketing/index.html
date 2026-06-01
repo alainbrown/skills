@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafbfc" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f1115" />
+    <meta name="robots" content="index, follow" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>{{NAME}} — {{ONE_LINER}}</title>
+    <meta name="description" content="{{NAME}} is a Chrome extension. {{ONE_LINER}}. Runs entirely in your browser — no servers, no accounts, no telemetry." />
+    <style>
+      :root {
+        /* FORGE: set --brand to the extension's brand color. */
+        --brand: #5b6cff;
+        --brand-end: #8a98ff;
+
+        --bg-0: #fafbfc;
+        --bg-1: #ffffff;
+        --border: #e6e8ec;
+        --ink-0: #0d0e12;
+        --ink-1: #2a2d35;
+        --ink-2: #585d6b;
+        --ink-3: #8c92a3;
+        --ink-4: #b4b8c4;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg-0: #0f1115;
+          --bg-1: #161a21;
+          --border: #2a303b;
+          --ink-0: #f5f6f8;
+          --ink-1: #d8dbe2;
+          --ink-2: #9da3b1;
+          --ink-3: #6c7283;
+          --ink-4: #4a5060;
+        }
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; }
+      body {
+        font-family: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        color: var(--ink-1);
+        background: var(--bg-0);
+        background-image:
+          radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--brand) 10%, transparent), transparent 50%),
+          radial-gradient(circle at 100% 100%, color-mix(in srgb, var(--brand) 7%, transparent), transparent 55%);
+        background-attachment: fixed;
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+        display: flex; flex-direction: column;
+        letter-spacing: -0.005em;
+      }
+
+      main {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 1.1fr;
+        align-items: center;
+        gap: clamp(32px, 5vw, 80px);
+        padding: clamp(48px, 8vh, 96px) clamp(28px, 5vw, 64px);
+      }
+      @media (max-width: 920px) {
+        main {
+          grid-template-columns: 1fr;
+          gap: 48px;
+          padding: 60px 24px;
+          align-items: start;
+        }
+      }
+
+      .brand { display: flex; flex-direction: column; gap: clamp(18px, 2.5vw, 28px); align-items: flex-start; }
+      .brand .lockup { display: flex; align-items: center; gap: clamp(16px, 2vw, 24px); }
+      .brand .mark {
+        width: clamp(56px, 7vw, 84px);
+        height: clamp(56px, 7vw, 84px);
+        border-radius: clamp(16px, 2.2vw, 22px);
+        background: linear-gradient(135deg, var(--brand), var(--brand-end));
+        display: inline-flex; align-items: center; justify-content: center;
+        color: #fff; font-weight: 800;
+        font-size: clamp(32px, 4vw, 48px); letter-spacing: -0.06em;
+        box-shadow: 0 1px 0 rgba(255,255,255,0.2) inset, 0 20px 50px -10px color-mix(in srgb, var(--brand) 48%, transparent);
+      }
+      .brand .wordmark {
+        font-size: clamp(44px, 8vw, 84px); font-weight: 800;
+        letter-spacing: -0.05em; line-height: 0.9; color: var(--ink-0);
+      }
+      .brand .sub {
+        font-size: clamp(16px, 2vw, 19px); line-height: 1.5;
+        color: var(--ink-2); max-width: 440px;
+      }
+
+      ul.features { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+      ul.features li {
+        position: relative; padding-left: 26px;
+        font-size: 15px; color: var(--ink-1); line-height: 1.45;
+      }
+      ul.features li::before {
+        content: ""; position: absolute; left: 0; top: 7px;
+        width: 14px; height: 14px; border-radius: 4px;
+        background: linear-gradient(135deg, var(--brand), var(--brand-end));
+      }
+
+      .video-frame {
+        position: relative; border-radius: 14px; overflow: hidden;
+        box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 1px 2px rgba(13,14,18,0.06), 0 32px 80px -10px rgba(13,14,18,0.22);
+        background: var(--bg-1); border: 1px solid var(--border);
+        aspect-ratio: 1280 / 800;
+      }
+      .video-frame video { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+      .cta-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+      .cta {
+        display: inline-flex; align-items: center; gap: 10px;
+        background: var(--brand); color: #fff; border: 1px solid var(--brand);
+        font-size: 14.5px; font-weight: 600; padding: 13px 24px; border-radius: 11px;
+        text-decoration: none; letter-spacing: -0.01em;
+        box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 10px 28px color-mix(in srgb, var(--brand) 35%, transparent);
+        transition: transform 0.15s, filter 0.12s;
+      }
+      .cta:hover { filter: brightness(0.92); transform: translateY(-1px); }
+      .cta svg { width: 16px; height: 16px; }
+      .cta-note {
+        font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 11.5px; color: var(--ink-3);
+      }
+
+      footer.mono {
+        padding: 20px clamp(28px, 5vw, 64px) 28px;
+        display: flex; align-items: center; justify-content: space-between;
+        flex-wrap: wrap; gap: 12px;
+        font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 11.5px; color: var(--ink-3);
+      }
+      footer.mono .sep { color: var(--ink-4); margin: 0 8px; }
+      footer.mono a { color: var(--ink-2); text-decoration: none; }
+      footer.mono a:hover { color: var(--brand); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="brand">
+        <div class="lockup">
+          <!-- FORGE: replace the mark letter with the first letter of {{NAME}}. -->
+          <span class="mark" aria-hidden="true">{{NAME}}</span>
+          <h1 class="wordmark">{{NAME}}</h1>
+        </div>
+        <p class="sub">{{ONE_LINER}}</p>
+
+        <!-- FORGE: replace these with the extension's real feature bullets. -->
+        <ul class="features">
+          <li>Runs entirely in your browser — no servers, no accounts.</li>
+          <li>No analytics, no trackers, no telemetry.</li>
+          <li>Open source — review exactly what it does.</li>
+        </ul>
+
+        <div class="cta-row">
+          <a class="cta" href="{{CWS_URL}}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="21.17" y1="8" x2="12" y2="8"/><line x1="3.95" y1="6.06" x2="8.54" y2="14"/><line x1="10.88" y1="21.94" x2="15.46" y2="14"/></svg>
+            Add to Chrome
+          </a>
+          <span class="cta-note">free · open source · 100% local</span>
+        </div>
+      </section>
+
+      <section class="video-frame" aria-label="{{NAME}} demo">
+        <!-- FORGE: demo.mp4 / demo-poster.png are produced by the demo step
+             and live in ../docs/. -->
+        <video autoplay muted playsinline loop poster="../docs/demo-poster.png">
+          <source src="../docs/demo.mp4" type="video/mp4" />
+        </video>
+      </section>
+    </main>
+
+    <footer class="mono">
+      <span>© {{YEAR}} <span class="sep">·</span> MIT <span class="sep">·</span> {{HOLDER}}</span>
+      <span>
+        <a href="./privacy.html">privacy</a>
+        <span class="sep">·</span>
+        <a href="https://github.com/{{OWNER}}/{{REPO}}">github</a>
+        <span class="sep">·</span>
+        <a href="https://github.com/{{OWNER}}/{{REPO}}/issues">issues</a>
+      </span>
+    </footer>
+  </body>
+</html>

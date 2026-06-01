@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#fafbfc" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f1115" />
+    <meta name="robots" content="index, follow" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>{{NAME}} — privacy</title>
+    <meta name="description" content="{{NAME}} privacy policy. Runs entirely on your device — no servers, no accounts, no telemetry." />
+    <style>
+      :root {
+        /* FORGE: set --brand to the extension's brand color. */
+        --brand: #5b6cff;
+        --brand-end: #8a98ff;
+
+        --bg: #fafbfc;
+        --ink-0: #0d0e12;
+        --ink-1: #2a2d35;
+        --ink-2: #585d6b;
+        --ink-3: #8c92a3;
+        --border: #e6e8ec;
+        --code-bg: #f4f5f7;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f1115;
+          --ink-0: #f5f6f8;
+          --ink-1: #d8dbe2;
+          --ink-2: #9da3b1;
+          --ink-3: #6c7283;
+          --border: #2a303b;
+          --code-bg: #1c2129;
+        }
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; }
+      body {
+        font-family: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        background: var(--bg); color: var(--ink-1);
+        -webkit-font-smoothing: antialiased; letter-spacing: -0.005em; line-height: 1.6;
+      }
+      main { max-width: 720px; margin: 0 auto; padding: 56px 28px 96px; }
+      header {
+        display: flex; align-items: center; gap: 12px;
+        padding-bottom: 24px; margin-bottom: 36px; border-bottom: 1px solid var(--border);
+      }
+      header .mark {
+        width: 36px; height: 36px; flex: none; border-radius: 10px;
+        background: linear-gradient(135deg, var(--brand), var(--brand-end));
+        display: inline-flex; align-items: center; justify-content: center;
+        color: #fff; font-weight: 800; font-size: 16px; letter-spacing: -0.04em;
+      }
+      header .name { font-weight: 700; font-size: 17px; color: var(--ink-0); letter-spacing: -0.02em; }
+      h1 { font-size: clamp(28px, 4vw, 36px); line-height: 1.15; letter-spacing: -0.025em; color: var(--ink-0); font-weight: 700; margin-bottom: 8px; }
+      .updated {
+        color: var(--ink-3); font-size: 13px;
+        font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+        margin-bottom: 28px;
+      }
+      h2 { font-size: 20px; font-weight: 700; color: var(--ink-0); letter-spacing: -0.015em; margin: 36px 0 12px; }
+      p { margin: 0 0 14px; color: var(--ink-1); font-size: 15.5px; }
+      ul { padding-left: 22px; margin: 0 0 18px; }
+      li { margin: 4px 0; font-size: 15.5px; color: var(--ink-1); }
+      strong { color: var(--ink-0); font-weight: 600; }
+      a { color: var(--brand); text-decoration: underline; text-underline-offset: 2px; }
+      a:hover { text-decoration-thickness: 2px; }
+      code {
+        font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.9em; background: var(--code-bg); padding: 1px 6px; border-radius: 4px; color: var(--ink-0);
+      }
+      .lede { color: var(--ink-2); font-size: 17px; line-height: 1.55; margin-bottom: 32px; }
+      footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 13px; color: var(--ink-3); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <!-- FORGE: replace the mark letter with the first letter of {{NAME}}. -->
+        <span class="mark" aria-hidden="true">{{NAME}}</span>
+        <span class="name">{{NAME}}</span>
+      </header>
+
+      <h1>Privacy</h1>
+      <!-- FORGE: set the real date. -->
+      <p class="updated">Last updated: {{YEAR}}-MM-DD</p>
+
+      <p class="lede">
+        {{NAME}} is a Chrome extension that {{ONE_LINER}}, entirely on your device.
+        No accounts, no servers, no telemetry. This page is the formal statement of
+        that — for the extension itself and for this marketing site.
+      </p>
+
+      <h2>The short version</h2>
+      <p>
+        <strong>{{NAME}} does not collect, sell, or transmit your personal data.</strong>
+        Everything it does happens locally inside your own browser. There are no
+        accounts, no analytics, and no third-party trackers.
+      </p>
+
+      <h2>What {{NAME}} stores</h2>
+      <p>Everything {{NAME}} stores lives on your device, in your browser's per-extension storage:</p>
+      <ul>
+        <li><strong>Settings</strong> — your preferences are kept in <code>chrome.storage.local</code>.</li>
+        <!-- FORGE: per-permission privacy lines from permissions-reference.md.
+             For each declared permission, paste its "Privacy line" here as a
+             <li> (replace <feature> with the real feature). -->
+      </ul>
+
+      <h2>What it sends over the network</h2>
+      <p>
+        <strong>Nothing.</strong> {{NAME}} makes no network requests. It contains no
+        remote code and talks to no servers.
+        <!-- FORGE: if the extension DOES make a network request (e.g. downloading
+             model weights from a CDN, or calling an API), replace this and
+             disclose exactly what is sent, to where, and why. -->
+      </p>
+      <p>There are no analytics, no error-reporting services, no third-party scripts, and no trackers.</p>
+
+      <h2>What it does NOT do</h2>
+      <p>{{NAME}} does <strong>not</strong>:</p>
+      <ul>
+        <li>Read or modify the pages you visit beyond what the listed permissions require.</li>
+        <li>Send any data to the developer or to any third party.</li>
+        <li>Use any analytics, error-reporting services, or trackers.</li>
+        <li>Execute any remotely-hosted code — all code is bundled in the package.</li>
+      </ul>
+
+      <h2>How to delete your data</h2>
+      <ul>
+        <li><strong>From the browser:</strong> uninstall the extension at <code>chrome://extensions</code>. Removing it removes all of its local storage with it.</li>
+      </ul>
+
+      <h2>Children</h2>
+      <p>
+        {{NAME}} is general-purpose and does not knowingly collect personal information
+        from children — because it does not collect personal information from anyone.
+      </p>
+
+      <h2>Changes to this policy</h2>
+      <p>
+        Material changes will be reflected in the "Last updated" date at the top of this
+        page and in the project's commit history.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Source code, issues, and the change history for this policy live at
+        <a href="https://github.com/{{OWNER}}/{{REPO}}">github.com/{{OWNER}}/{{REPO}}</a>.
+      </p>
+
+      <footer>
+        <a href="./">← back to {{NAME}}</a>
+      </footer>
+    </main>
+  </body>
+</html>

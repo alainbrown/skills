@@ -1,0 +1,49 @@
+/* Design tokens. FORGE: tune brand color, spacing, and type to taste. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  /* FORGE: brand accent — used for switches, links, focus, status dots. */
+  --brand: #5258d8;
+  --brand-glow: rgba(82, 88, 216, 0.28);
+
+  /* Surfaces & ink (light theme). */
+  --bg-1: #f6f6f8;
+  --bg-2: #ececf1;
+  --panel: #ffffff;
+  --ink: #16161c;
+  --ink-2: #56565e;
+  --ink-3: #9a9aa2;
+  --rule: #e2e2e8;
+  --rule-2: #c9c9d2;
+  --danger: #e5484d;
+
+  /* Spacing scale (4px base). */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+  --space-7: 32px;
+
+  /* Type. */
+  --font-display: "Inter", system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-1: #131318;
+    --bg-2: #1b1b22;
+    --panel: #20202a;
+    --ink: #f3f3f6;
+    --ink-2: #c8c8d0;
+    --ink-3: #8c8c96;
+    --rule: #34343e;
+    --rule-2: #45454f;
+    /* Brand brightens slightly for contrast on dark surfaces. */
+    --brand: #7a80f0;
+    --brand-glow: rgba(122, 128, 240, 0.32);
+  }
+}

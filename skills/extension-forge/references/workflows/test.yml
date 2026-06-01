@@ -1,0 +1,61 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Reusable so release.yml can call this exact job before publishing.
+  workflow_call:
+
+concurrency:
+  # Cancel in-flight runs for the same PR when a new commit lands; let
+  # main/release runs complete on their own.
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    # FORGE: switch to macos-14 if the extension needs WebGPU/GPU.
+    # ubuntu-latest has no GPU, so a headless WebGPU e2e (e.g. an on-device
+    # model running via WebGPU) will silently fall back to WASM or fail.
+    # macos-14 (Apple Silicon) gives Chromium a real Metal-backed GPU.
+    # To switch: replace the line below with `runs-on: macos-14` and add
+    # `--with-deps` is Linux-only — drop it from the Playwright install step
+    # on macOS (just `npx playwright install chromium`).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # FORGE: if vite build already runs `tsc`, you can drop this and rely
+      # on the build step below to typecheck. Kept separate for a fast,
+      # clear failure signal.
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      # The e2e suite drives Chromium via Playwright. --with-deps installs the
+      # libnss/libatk/etc. shared libs the Chromium binary needs on Linux.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      # Surface the Playwright HTML report on failure for debugging.
+      - name: Upload Playwright report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

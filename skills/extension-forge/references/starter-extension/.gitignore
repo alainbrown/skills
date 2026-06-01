@@ -1,0 +1,15 @@
+.DS_Store
+node_modules/
+dist/
+build/
+out/
+.claude/
+test-results/
+playwright-report/
+*-workspace/
+tmp/
+*.log
+.env
+.env.local
+.env.*.local
+.vercel

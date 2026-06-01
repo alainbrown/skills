@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# Needed for creating the tag + GitHub Release.
+permissions:
+  contents: write
+
+concurrency:
+  # Don't cancel in-flight releases — each push to main is potentially
+  # a new version landing.
+  group: release-${{ github.ref }}
+
+jobs:
+  # ---- Detect whether package.json's `version` changed in this push. ----
+  # The release pipeline is gated entirely on this output, so version is
+  # the single source of truth — no human-pushed tags to drift from.
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.d.outputs.version }}
+      changed: ${{ steps.d.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # so we can compare HEAD~1's package.json
+
+      - id: d
+        name: Compare package.json version with previous commit
+        run: |
+          CUR=$(node -p "require('./package.json').version")
+          PREV=$(git show HEAD~1:package.json 2>/dev/null \
+            | node -p "try { JSON.parse(require('fs').readFileSync(0,'utf8')).version } catch { '' }" \
+            || echo "")
+          echo "version=$CUR" >> "$GITHUB_OUTPUT"
+          if [ -n "$CUR" ] && [ "$CUR" != "$PREV" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::package.json version bumped: ${PREV:-<none>} -> $CUR"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::package.json version unchanged at $CUR; nothing to release."
+          fi
+
+  # ---- Revert safety: if the tag already exists (e.g. someone reverted ----
+  # a version bump and re-bumped to a previous number), silently skip.
+  check-tag:
+    needs: detect
+    if: needs.detect.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      exists: ${{ steps.c.outputs.exists }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: c
+        run: |
+          if gh release view "v${{ needs.detect.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release v${{ needs.detect.outputs.version }} already exists; bailing (revert safety)."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ---- The gate: run the full test suite via the reusable test.yml ----
+  # workflow. The release job only proceeds if this passes.
+  test:
+    needs: [detect, check-tag]
+    if: needs.detect.outputs.changed == 'true' && needs.check-tag.outputs.exists == 'false'
+    uses: ./.github/workflows/test.yml
+
+  # ---- Build, package, and publish the GitHub Release. ----
+  release:
+    needs: [detect, check-tag, test]
+    if: needs.detect.outputs.changed == 'true' && needs.check-tag.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.detect.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extension
+        run: npm run build
+
+      # FORGE: `dist` is the Vite build output dir. Change it here and in the
+      # zip step below if your build emits somewhere else.
+      - name: Package dist as zip
+        run: |
+          cd dist
+          zip -r "../{{NAME}}-v${VERSION}.zip" .
+          cd ..
+          ls -la "{{NAME}}-v${VERSION}.zip"
+
+      # GitHub Release only — no Chrome Web Store auto-publish.
+      # The zip is attached for manual upload to the Chrome Web Store dashboard.
+      - name: Create GitHub Release
+        run: |
+          gh release create "v${VERSION}" \
+            "{{NAME}}-v${VERSION}.zip" \
+            --title "{{NAME}} v${VERSION}" \
+            --generate-notes

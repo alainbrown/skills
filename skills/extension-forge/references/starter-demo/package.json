@@ -1,0 +1,27 @@
+{
+  "name": "extension-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-contained Remotion asset factory for a Chrome extension: demo MP4/GIF + Chrome Web Store store assets. Lives in the extension repo as demo/.",
+  "scripts": {
+    "studio": "remotion studio index.ts",
+    "render": "remotion render index.ts Demo ../docs/demo.mp4 --concurrency=1 --log=warn",
+    "still": "remotion still index.ts",
+    "render:assets": "bash scripts/render-all.sh",
+    "render:docker": "docker build -t extension-demo-render -f Dockerfile . && docker run --rm -v \"$(cd .. && pwd)\":/work -v /work/demo/node_modules -w /work/demo extension-demo-render bash scripts/render-all.sh"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.470",
+    "@remotion/renderer": "4.0.470",
+    "@remotion/transitions": "4.0.470",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "remotion": "4.0.470"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/web": "^0.0.349",
+    "typescript": "^5.9.0"
+  }
+}

@@ -95,6 +95,14 @@
       "skills": [
         "./skills/llm-wiki"
       ]
+    },
+    {
+      "name": "extension-forge",
+      "description": "Build and launch a complete Chrome (Manifest V3) extension — scaffolds a @crxjs + React + TypeScript extension (or wraps an existing one), audits permissions against actual code use and prunes the unused, generates Chrome Web Store paperwork (per-permission privacy policy, reviewer justifications, listing copy), renders a reproducible Remotion-in-Docker demo video plus all store marketing assets at exact dimensions (icons, 1280x800 screenshots, 1400x560 marquee, 440x280 promo tile, 1280x720 thumbnail), and wires a badged README with test/release GitHub Actions that release on version bump + passing tests. Use for 'create a chrome extension', 'publish to the chrome web store', 'make an extension with a demo video', 'package my extension', or 'ship my extension'.",
+      "source": "./",
+      "skills": [
+        "./skills/extension-forge"
+      ]
     }
   ]
 }
