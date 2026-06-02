@@ -1,5 +1,6 @@
-import { Composition, Still } from "remotion";
+import { Composition, Still, staticFile } from "remotion";
 import { Demo } from "./Demo";
+import { sceneTimings, totalFrames, type NarrationManifest } from "./narration";
 import { Screenshots } from "./store/Screenshots";
 import { Marquee } from "./store/Marquee";
 import { PromoTile } from "./store/PromoTile";
@@ -13,18 +14,36 @@ const BRAND = "#5258d8";
 
 export const RemotionRoot = () => (
   <>
-    {/* Demo · 1280x800 · 20s @ 30fps. Renders to MP4 (YouTube / landing
-        page) and a scaled-down GIF (README hero). 1280x800 is the Chrome
-        Web Store's preferred screenshot aspect, so the same canvas frames
-        the popup nicely. */}
+    {/* Demo · 1280x800 @ 30fps. Renders to MP4 (YouTube / landing page) and
+        a scaled-down GIF (README hero). 1280x800 is the Chrome Web Store's
+        preferred screenshot aspect, so the same canvas frames the popup nicely.
+
+        Length is computed in calculateMetadata: 600 frames (20s) when silent,
+        or sized to the voice-over when public/narration/manifest.json exists
+        (written by `npm run render:voice`). See narration.ts. */}
     <Composition
       id="Demo"
       component={Demo}
-      durationInFrames={600}
       fps={30}
       width={1280}
       height={800}
-      defaultProps={{ brand: BRAND }}
+      defaultProps={{ brand: BRAND, narration: null as NarrationManifest | null }}
+      calculateMetadata={async ({ props }) => {
+        let narration = props.narration ?? null;
+        if (!narration) {
+          // Missing manifest => silent render. Never throw on a failed fetch.
+          try {
+            const res = await fetch(staticFile("narration/manifest.json"));
+            if (res.ok) narration = (await res.json()) as NarrationManifest;
+          } catch {
+            narration = null;
+          }
+        }
+        return {
+          durationInFrames: totalFrames(sceneTimings(narration)),
+          props: { ...props, narration },
+        };
+      }}
     />
 
     {/* Chrome Web Store · 5 screenshots @ 1280x800. One Still component

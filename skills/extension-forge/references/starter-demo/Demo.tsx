@@ -1,16 +1,15 @@
-// FORGE: replace scenes with the extension's demo beats. The Demo is a
-// TransitionSeries of independent scenes, each ~a "beat" of the story.
-// Add/remove/reorder <Sequence> blocks freely — just keep the total
-// (sum of scene durations minus transition overlaps) at 600 frames so it
-// matches the composition registered in Root.tsx (20s @ 30fps).
-//
-// Frame budget:  sum(durations) - (numTransitions * TRANSITION) = 600
-//   150 + 210 + 195 + 90 = 645 ;  645 - 3*15 = 600  ✓
+// FORGE: the demo beats. A TransitionSeries of scenes, one per beat. Scene
+// order/names + durations live in narration.ts; edit SCENE_ORDER and the
+// COMPONENTS map below together. Silent budget: 150+210+195+90 - 3*15 = 600
+// frames (20s @ 30fps). With a narration manifest, scenes resize to the voice
+// and total length is set in Root.tsx (calculateMetadata).
 
-import { AbsoluteFill } from "remotion";
+import type { ReactNode } from "react";
+import { AbsoluteFill, Audio, staticFile } from "remotion";
 import { linearTiming, TransitionSeries } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
 import { DEFAULT_BRAND, shade } from "./theme";
+import { sceneTimings, type NarrationManifest, type SceneName } from "./narration";
 import { SceneIntro } from "./scenes/SceneIntro";
 import { ScenePopup } from "./scenes/ScenePopup";
 import { SceneInPage } from "./scenes/SceneInPage";
@@ -18,7 +17,17 @@ import { SceneOutro } from "./scenes/SceneOutro";
 
 interface DemoProps {
   brand?: string;
+  /** Injected by calculateMetadata when a voice-over manifest is present. */
+  narration?: NarrationManifest | null;
 }
+
+// FORGE: keep these keys identical to SCENE_ORDER in narration.ts.
+const COMPONENTS: Record<SceneName, (p: { brand: string }) => ReactNode> = {
+  SceneIntro,
+  ScenePopup,
+  SceneInPage,
+  SceneOutro,
+};
 
 const TRANSITION = 15;
 const fadeT = () => ({
@@ -26,31 +35,25 @@ const fadeT = () => ({
   timing: linearTiming({ durationInFrames: TRANSITION }),
 });
 
-export const Demo = ({ brand = DEFAULT_BRAND }: DemoProps) => (
-  <AbsoluteFill style={{ background: shade(brand, -120) }}>
-    <TransitionSeries>
-      {/* FORGE: beat 1 — hook / brand */}
-      <TransitionSeries.Sequence durationInFrames={150}>
-        <SceneIntro brand={brand} />
-      </TransitionSeries.Sequence>
-      <TransitionSeries.Transition {...fadeT()} />
+export const Demo = ({ brand = DEFAULT_BRAND, narration = null }: DemoProps) => {
+  const timings = sceneTimings(narration);
 
-      {/* FORGE: beat 2 — the popup / core interaction */}
-      <TransitionSeries.Sequence durationInFrames={210}>
-        <ScenePopup brand={brand} />
-      </TransitionSeries.Sequence>
-      <TransitionSeries.Transition {...fadeT()} />
+  // TransitionSeries reads its children directly — keep them flat, no Fragment.
+  const children: ReactNode[] = [];
+  timings.forEach((t, i) => {
+    if (i > 0) children.push(<TransitionSeries.Transition key={`t-${i}`} {...fadeT()} />);
+    const Scene = COMPONENTS[t.name];
+    children.push(
+      <TransitionSeries.Sequence key={t.name} durationInFrames={t.durationInFrames}>
+        {t.audio ? <Audio src={staticFile(t.audio)} /> : null}
+        <Scene brand={brand} />
+      </TransitionSeries.Sequence>,
+    );
+  });
 
-      {/* FORGE: beat 3 — in-context on a real page */}
-      <TransitionSeries.Sequence durationInFrames={195}>
-        <SceneInPage brand={brand} />
-      </TransitionSeries.Sequence>
-      <TransitionSeries.Transition {...fadeT()} />
-
-      {/* FORGE: beat 4 — call to action */}
-      <TransitionSeries.Sequence durationInFrames={90}>
-        <SceneOutro brand={brand} />
-      </TransitionSeries.Sequence>
-    </TransitionSeries>
-  </AbsoluteFill>
-);
+  return (
+    <AbsoluteFill style={{ background: shade(brand, -120) }}>
+      <TransitionSeries>{children}</TransitionSeries>
+    </AbsoluteFill>
+  );
+};

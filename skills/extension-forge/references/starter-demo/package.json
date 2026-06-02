@@ -8,7 +8,9 @@
     "render": "remotion render index.ts Demo ../docs/demo.mp4 --concurrency=1 --log=warn",
     "still": "remotion still index.ts",
     "render:assets": "bash scripts/render-all.sh",
-    "render:docker": "docker build -t extension-demo-render -f Dockerfile . && docker run --rm -v \"$(cd .. && pwd)\":/work -v /work/demo/node_modules -w /work/demo extension-demo-render bash scripts/render-all.sh"
+    "render:docker": "docker build -t extension-demo-render -f Dockerfile . && docker run --rm -v \"$(cd .. && pwd)\":/work -v /work/demo/node_modules -w /work/demo extension-demo-render bash scripts/render-all.sh",
+    "narrate": "node scripts/narrate.mjs",
+    "render:voice": "docker compose --profile voice up -d --wait tts && KOKORO_URL=http://tts:8880/v1 docker compose run --rm render; docker compose --profile voice down"
   },
   "dependencies": {
     "@remotion/cli": "4.0.470",

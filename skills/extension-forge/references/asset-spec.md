@@ -15,6 +15,19 @@ mock props — one source of truth, no drift between product and demo.
 | `PromoTile` | `docs/store/promo-tile.png` | **440×280** | CWS small promo tile |
 | `Thumbnail` | `docs/youtube-thumbnail.png` | **1280×720** | YouTube video thumbnail |
 
+## Voice-over (optional — `options.voiceOver`)
+
+When enabled, `demo.mp4` carries an AI narration track. The render is **audio-driven**: a
+self-hosted [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) TTS container (the `voice`
+profile in `demo/docker-compose.yml`) synthesizes one clip per scene from `demo/narration.json`,
+each scene auto-sizes to its spoken line (see `demo/narration.ts`), and the clips are mixed into the
+MP4. Run with `npm run render:voice` instead of `render:docker`.
+
+- The **GIF stays silent** (GIFs carry no audio) — it remains the README hero either way.
+- The MP4 gets **longer than 20s** when narrated (length follows the voice).
+- On-screen captions still render; voice layers on top.
+- Requires Docker. Without it (or on any TTS failure), fall back to the silent render — never a hard fail.
+
 ## Chrome Web Store official requirements (verify current rules at submission)
 
 - **Store icon:** 128×128 PNG (also in the manifest `icons`).

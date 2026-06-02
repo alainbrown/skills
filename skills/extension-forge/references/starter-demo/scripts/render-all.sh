@@ -24,6 +24,19 @@ ENTRY="index.ts"
 
 mkdir -p "$DOCS/store"
 
+# Optional voice-over. When KOKORO_URL is set (the `voice` compose profile
+# points it at the Kokoro TTS service), synthesize narration into
+# public/narration/ first; Remotion then sizes the Demo to the voice and mixes
+# the clips into the MP4. Never fatal — a failure here renders silent.
+if [ -n "${KOKORO_URL:-}" ]; then
+  echo "→ Synthesizing voice-over via $KOKORO_URL …"
+  if node scripts/narrate.mjs; then
+    echo "  → narration ready (Demo will render narrated)"
+  else
+    echo "  ! narration failed — rendering silent" >&2
+  fi
+fi
+
 echo "→ Rendering Demo composition to MP4 (1280x800, ~20s)…"
 npx remotion render "$ENTRY" Demo "$DOCS/demo.mp4" \
   --concurrency=1 \

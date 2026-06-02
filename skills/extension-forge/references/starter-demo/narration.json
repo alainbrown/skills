@@ -1,0 +1,26 @@
+{
+  "_comment": "FORGE: voice-over script, one line per scene. `scene` must match SCENE_ORDER in narration.ts; keep `text` aligned with that scene's Caption. `voice` is a Kokoro voice (https://github.com/remsky/Kokoro-FastAPI) mapped to state.context.tone, e.g. af_heart (calm), af_bella (energetic), am_adam (authoritative).",
+  "voice": "af_heart",
+  "lines": [
+    {
+      "id": "intro",
+      "scene": "SceneIntro",
+      "text": "Meet the extension that does one thing, and does it well — right where you already work."
+    },
+    {
+      "id": "popup",
+      "scene": "ScenePopup",
+      "text": "Click the toolbar icon and everything you need is one tap away — no tabs, no setup, no friction."
+    },
+    {
+      "id": "inpage",
+      "scene": "SceneInPage",
+      "text": "It works in context, on the pages you visit, so you stay in your flow instead of switching away."
+    },
+    {
+      "id": "outro",
+      "scene": "SceneOutro",
+      "text": "Install it from the Chrome Web Store today, and get started in seconds."
+    }
+  ]
+}

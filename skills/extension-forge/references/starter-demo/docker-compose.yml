@@ -1,0 +1,51 @@
+# Optional narrated render. The silent default still uses `npm run
+# render:docker` (direct `docker run`). This adds a Kokoro TTS container that
+# synthesizes the voice track for the renderer to mux into demo.mp4:
+#
+#   npm run render:voice       # brings up TTS, renders narrated, tears down
+#
+# TTS sits behind the `voice` profile, so `docker compose run --rm render`
+# never starts it.
+
+services:
+  # Remotion renderer (same image as `npm run render:docker`). Bind-mounts the
+  # repo at /work so `@ext` -> ../src resolves and outputs land in ./docs.
+  render:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: extension-demo-render
+    working_dir: /work/demo
+    volumes:
+      - "..:/work"
+      - "/work/demo/node_modules"
+    environment:
+      # Empty by default => render-all.sh renders silent. `npm run
+      # render:voice` sets this to the in-network TTS service.
+      - KOKORO_URL=${KOKORO_URL:-}
+    command: bash scripts/render-all.sh
+
+  # Kokoro-82M TTS, OpenAI-compatible /v1/audio/speech. CPU image (runs on Mac,
+  # where Docker can't reach the GPU). Weights (~310MB) are baked into the
+  # image — no first-run download, no cache volume, ready in seconds.
+  tts:
+    profiles: ["voice"]
+    # Pinned by digest for reproducibility. Tag at pin time was
+    # ghcr.io/remsky/kokoro-fastapi-cpu:latest (verified booting on linux/arm64).
+    # FORGE: to update, resolve a fresh digest with
+    #   docker buildx imagetools inspect ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    # For an NVIDIA box, swap to ghcr.io/remsky/kokoro-fastapi-gpu and add a
+    # `deploy.resources` GPU reservation. Project: https://github.com/remsky/Kokoro-FastAPI
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest@sha256:a9703644dd7aa6b672db6b1f1490c4262c42210a26f9e7f8243cb251e32e9600
+    ports:
+      # Published so you can also hit it from the host:
+      #   KOKORO_URL=http://localhost:8880/v1 npm run narrate
+      - "8880:8880"
+    healthcheck:
+      # `npm run render:voice` waits on this (`up --wait`) before rendering.
+      # /health returns {"status":"healthy"}; curl ships in the image.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8880/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s

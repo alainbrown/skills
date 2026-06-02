@@ -40,7 +40,7 @@ the build. Written at the user's repo root (NOT the skills repo).
 Schema in `references/state-schema.md`. Key fields: `phase`, `mode`, `scope` (new | wrap | conform),
 `project` (path, name, packageManager), `extension` (oneLiner, coreFeature, surfaces, permissions,
 hostPermissions), `context` (audience, tone, brandColor, demoBeats), `options` (iconAutoGen,
-macosRunner, marketingPage), `cws` (justificationsDone, privacyDone), `demo` (rendered, assets),
+macosRunner, marketingPage, voiceOver), `cws` (justificationsDone, privacyDone), `demo` (rendered, narrated, assets),
 `repo` (workflowsDone, badges), `conform` (branch, plan, moves), `decisions`.
 </core_principle>
 
@@ -90,8 +90,8 @@ CWS templates) lives as real files — never re-derived from memory.
 │   └── styles/tokens.css       brand tokens (color, type)
 ├── public/icons/{16,32,48,128}.png   (auto-gen from logo.svg if enabled)
 ├── tests/{unit,e2e}            vitest (chrome stubs) + playwright (loads unpacked)
-├── demo/                       Remotion project (Dockerfile, compositions, render-all.sh)
-├── docs/                       rendered assets: demo.mp4, demo.gif, store/*, youtube-thumbnail.png
+├── demo/                       Remotion project (Dockerfile, docker-compose.yml, compositions, render-all.sh, narration.json)
+├── docs/                       rendered assets: demo.mp4 (narrated if voiceOver), demo.gif, store/*, youtube-thumbnail.png
 ├── marketing/                  optional GH Pages landing page
 ├── .github/workflows/          test.yml (push+PR) · release.yml (version-bump gate) · deploy.yml?
 ├── PRIVACY.md · store-assets/cws-justifications.md
@@ -168,6 +168,7 @@ For `scope: wrap`, extract as much as possible from the existing manifest/code f
 4. **Permissions** — what Chrome APIs it needs. For each, read `references/permissions-reference.md` and record the matching justification + privacy line. Also capture **host permissions** (which origins, and why — this is the #1 CWS rejection reason).
 5. **Brand** — primary color + a logo (svg path if they have one; otherwise note to generate a placeholder). Drives `tokens.css`, icons, and demo styling.
 6. **Demo beats** — 3-6 moments the demo video should show (e.g., "open side panel → select text → result streams in → settings"). These become Remotion scenes.
+7. **Voice-over?** (optional, default no) — should the demo video have an AI voice-over narrating each beat? If yes, set `options.voiceOver = true`; the `demo` step will draft a narration script for the user to approve and render it with a self-hosted Kokoro TTS (Docker required). On-screen captions stay regardless — voice layers on top.
 
 Write everything to `state.extension` and `state.context`. Keep components PURE from the start — the demo will mount them with mock props, so no `chrome.*` calls inside presentational components (wire those in `*Container` wrappers). State this constraint explicitly to the user; it's load-bearing.
 
@@ -235,9 +236,12 @@ Update `state.cws`. ▶ Next: `demo`
    | `PromoTile` | `docs/store/promo-tile.png` | 440×280 |
    | `Thumbnail` | `docs/youtube-thumbnail.png` | 1280×720 |
 
-3. **Render in Docker** (reproducible): `npm run render:docker` (builds the image off `mcr.microsoft.com/playwright`, pre-ensures Chromium, runs `render-all.sh`, writes to `docs/`). 
-   - If Docker isn't available, stage everything and tell the user the exact command to run later — DON'T fail the whole flow. Record `state.demo.rendered = false` and continue.
-4. **Verify assets** exist at the right dimensions; the GIF is palette-optimized and reasonably sized for a README hero.
+3. **Voice-over** (only if `options.voiceOver`): draft a narration script and edit `demo/narration.json` — one `text` line per scene, worded to match each scene's on-screen `Caption` (keep voice + captions aligned). Pick a `voice` from the Kokoro list mapped to `state.context.tone`. **Show the draft to the user and let them edit before rendering** — the script is the biggest lever on whether the demo sounds good. The narrated render is audio-driven: each scene auto-sizes to its line, so don't hand-time durations.
+4. **Render in Docker** (reproducible):
+   - Silent (default): `npm run render:docker` (builds the image off `mcr.microsoft.com/playwright`, pre-ensures Chromium, runs `render-all.sh`, writes to `docs/`).
+   - Narrated (if `options.voiceOver`): `npm run render:voice` — brings up the off-the-shelf Kokoro TTS container (the `voice` compose profile), synthesizes the voice, mixes it into `demo.mp4`, tears down. Weights are baked into the image (ready in seconds, no download); CPU-only on Mac, so synthesis is slower there but still works. The **GIF stays silent** regardless. Set `state.demo.narrated = true` on success.
+   - If Docker isn't available, stage everything and tell the user the exact command to run later — DON'T fail the whole flow. Record `state.demo.rendered = false` (and, if voice was requested, `state.demo.narrated = false`) and continue. Voice-over NEVER blocks the build — if the TTS container or render fails, fall back to the silent render.
+5. **Verify assets** exist at the right dimensions; the GIF is palette-optimized and reasonably sized for a README hero. If narrated, confirm `demo.mp4` has an audio track.
 
 Update `state.demo.assets`. ▶ Next: `repo_setup`
 </step>
@@ -297,6 +301,7 @@ Report a one-screen summary: build ✓/✗, unit/e2e pass-skip-fail, assets pres
 - NEVER require MCP/docs tools to function — optional enhancement only.
 - NEVER auto-publish to the Chrome Web Store — release is a GitHub Release with a zip for manual upload (this build excludes CWS auto-publish wiring).
 - NEVER fail the whole flow if Docker is unavailable — stage the render and give the exact command.
+- Voice-over is OPTIONAL and additive — it requires Docker (the TTS server is a container). If `options.voiceOver` is off, or Docker/the TTS service is unavailable or fails, render the demo SILENT exactly as before; never block the build on it. On-screen captions always render either way.
 - NEVER ship an extension that doesn't build — `verify` is mandatory.
 - Delete `.forge-state.json` from the user's project at the end.
 - If the user's request doesn't fit (e.g., a Firefox-only extension, or a non-extension web app), say what the skill handles rather than force-fitting.
@@ -311,6 +316,7 @@ Report a one-screen summary: build ✓/✗, unit/e2e pass-skip-fail, assets pres
 - [ ] Permission audit run: declared manifest reconciled against actual code use; unused permissions pruned, broad host patterns narrowed; audited set recorded
 - [ ] CWS paperwork generated: per-permission PRIVACY.md + cws-justifications.md (single purpose, store-listing copy, per-permission, host, data-usage + data-type table, remote-code) + packaging script
 - [ ] Demo project copied; compositions reuse live components; demo.mp4 + demo.gif + all store assets rendered (or render command staged if no Docker)
+- [ ] (if voiceOver) narration script drafted, user-approved, and rendered into demo.mp4 via the Kokoro `voice` profile — or silent fallback if Docker/TTS unavailable
 - [ ] README with badge block, test.yml (push+PR), release.yml (version-bump → reusable test gate → GitHub Release), .gitignore, LICENSE
 - [ ] Marketing landing page scaffolded (option enabled)
 - [ ] Build verified: install + build + tests pass; unpacked load confirmed; assets present

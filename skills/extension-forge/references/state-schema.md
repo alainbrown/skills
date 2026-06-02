@@ -37,10 +37,11 @@ every step, deleted in `done`.
     "iconAutoGen": true,
     "macosRunner": true,
     "marketingPage": true,
+    "voiceOver": false,
     "cwsAutoPublish": false
   },
   "cws": { "privacyDone": false, "justificationsDone": false },
-  "demo": { "rendered": false, "assets": [] },
+  "demo": { "rendered": false, "narrated": false, "assets": [] },
   "repo": { "workflowsDone": false, "badges": false, "gitInit": false },
   "conform": {
     "branch": "chore/conform-layout",
@@ -65,7 +66,9 @@ every step, deleted in `done`.
 - `extension.permissions` / `hostPermissions`: every entry must trace to a feature AND have a matching block in `references/permissions-reference.md`. Over-broad → CWS rejection.
 - `context.demoBeats`: 3-6 moments → become Remotion scenes in the demo.
 - `options.cwsAutoPublish`: `false` in this build — release is GitHub-Release-only.
+- `options.voiceOver`: `true` to narrate the demo video. The `demo` step drafts `demo/narration.json` (user-approved) and renders via the Kokoro `voice` compose profile (`npm run render:voice`). Requires Docker; degrades to a silent render otherwise.
 - `demo.rendered`: `false` when Docker was unavailable and the render was staged for the user to run.
+- `demo.narrated`: `true` only after the voice-over actually rendered into `demo.mp4`. Stays `false` for silent renders and when voice was requested but fell back (no Docker/TTS).
 
 This is a subagent contract: any field a generation subagent needs must live here, because the state
 file is the only context those subagents receive.
